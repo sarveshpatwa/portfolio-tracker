@@ -5,6 +5,8 @@ import { S } from '../../data/db/schema';
 import { backupFileName, type BackupFile } from '../../domain/sync/backup';
 import { describeChanges, type MergePlan } from '../../domain/sync/merge';
 import { Dialog } from '../components/Dialog';
+import { MarketSettingsCard } from '../components/MarketSettingsCard';
+import { priceService } from '../../application/priceService';
 import { describeAge } from '../../domain/pricing/prices';
 import { daysBetween, todayLocal } from '../../domain/calendar/dates';
 
@@ -85,6 +87,8 @@ export function SettingsScreen() {
     try {
       const plan = await backupRepo.applyMerge(pending.file);
       setPending(null);
+      // Restored tickers need price history on this device — start downloading now.
+      void priceService.tick();
       setNotice({
         tone: 'ok',
         text: plan.noChanges ? 'Already up to date — nothing to merge.' : `Merged: ${describeChanges(plan.changes).join(' · ')}.`,
@@ -159,12 +163,7 @@ export function SettingsScreen() {
         )}
       </section>
 
-      <section className="card stack" aria-labelledby="data-title">
-        <h2 id="data-title" className="section-title">
-          Market data
-        </h2>
-        <p className="muted small">The Twelve Data API key and price refresh settings arrive in the next step.</p>
-      </section>
+      <MarketSettingsCard />
 
       <section className="card stack" aria-labelledby="danger-title">
         <h2 id="danger-title" className="section-title">

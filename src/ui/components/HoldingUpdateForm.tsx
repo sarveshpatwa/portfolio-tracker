@@ -17,11 +17,14 @@ import { Field } from './Field';
 export function HoldingUpdateForm({
   unitsHeld,
   currentPrice,
+  marketPriceOn,
   onSubmit,
   onCancel,
 }: {
   unitsHeld: Dec;
   currentPrice?: Dec;
+  /** Market assets: the price comes from history for the chosen date and can't be typed. */
+  marketPriceOn?: (date: string) => Dec | undefined;
   onSubmit: (update: HoldingUpdate) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -36,13 +39,17 @@ export function HoldingUpdateForm({
   const [errors, setErrors] = useState<HoldingUpdateErrors>({});
   const [busy, setBusy] = useState(false);
 
+  // Market assets: price follows the date (close that day, or live today).
+  const lockedPrice = marketPriceOn ? marketPriceOn(form.date) : undefined;
+  const effective: HoldingUpdateInput = marketPriceOn ? { ...form, price: lockedPrice ? lockedPrice.toString() : '' } : form;
+
   const set = <K extends keyof HoldingUpdateInput>(key: K, value: HoldingUpdateInput[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: undefined, form: undefined }));
   };
 
   // Live preview of what the update will do (ignores invalid input).
-  const price = Dec.tryParse(form.price);
+  const price = Dec.tryParse(effective.price);
   const entered = Dec.tryParse(form.units);
   const change = !entered ? Dec.ZERO : form.unitsMode === 'add' ? entered : entered.sub(unitsHeld);
   const after = unitsHeld.add(change);
@@ -50,7 +57,9 @@ export function HoldingUpdateForm({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const r = parseHoldingUpdate(form, { unitsHeld, ...(currentPrice ? { currentPrice } : {}), today });
+    const ref = marketPriceOn ? lockedPrice : currentPrice;
+    const r = parseHoldingUpdate(effective, { unitsHeld, ...(ref ? { currentPrice: ref } : {}), today });
+    if (marketPriceOn && !lockedPrice && r.ok === false) r.errors.price = 'No market price for that date yet.';
     if (!r.ok) return setErrors(r.errors);
     setBusy(true);
     try {
@@ -69,11 +78,22 @@ export function HoldingUpdateForm({
         </Field>
         <Field label="Price per unit ($)" error={errors.price}>
           {(p) => (
-            <input {...p} className="input" inputMode="decimal" value={form.price} onChange={(e) => set('price', e.target.value)} />
+            <input
+              {...p}
+              className="input"
+              inputMode="decimal"
+              value={effective.price}
+              readOnly={!!marketPriceOn}
+              onChange={(e) => set('price', e.target.value)}
+            />
           )}
         </Field>
       </div>
-      <p className="muted small">Leave the price as it is if it didn't change (e.g. a stock that stays at $1.00).</p>
+      <p className="muted small">
+        {marketPriceOn
+          ? 'Market price for the chosen date (closing price, or the live price today). It updates automatically.'
+          : "Leave the price as it is if it didn't change (e.g. a stock that stays at $1.00)."}
+      </p>
 
       <fieldset className="fieldset">
         <legend className="field-label">Units · now {formatQty(unitsHeld)}</legend>

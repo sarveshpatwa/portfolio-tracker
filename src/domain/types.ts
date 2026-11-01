@@ -51,6 +51,8 @@ export interface Instrument {
   id: Id;
   /** Ticker for market instruments (e.g. "VTI"); absent for manual assets. */
   symbol?: string;
+  /** Listing exchange shown to the user, e.g. "NYSE Arca" (market instruments). */
+  exchange?: string;
   name: string;
   assetClass: AssetClass;
   priceSource: PriceSource;
@@ -183,6 +185,8 @@ export interface PricePoint {
   date: IsoDate;
   close: DecimalString;
   source: 'market' | 'manual';
-  /** When this point was written (manual prices). Lets a backup merge keep the newer of two edits. */
+  /** When this point was written. Lets a backup merge keep the newer of two edits. */
   updatedAt?: string;
+  /** Market prices only: a live price during the session, replaced by the final close later. */
+  intraday?: boolean;
 }

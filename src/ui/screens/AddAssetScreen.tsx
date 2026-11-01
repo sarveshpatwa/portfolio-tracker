@@ -8,7 +8,12 @@ import { Dec } from '../../domain/money/decimal';
 import { formatUsd } from '../../domain/money/format';
 import type { AssetClass } from '../../domain/types';
 import { assetRepo } from '../../data/repositories/assetRepo';
+import { settingsRepo } from '../../data/repositories/settingsRepo';
+import { S } from '../../data/db/schema';
 import { href, navigate } from '../../app/routes';
+import type { Portfolio } from '../../domain/types';
+import type { AssetRow } from '../../application/portfolioQueries';
+import { MarketAssetForm } from '../components/MarketAssetForm';
 
 const CLASS_OPTIONS: { value: AssetClass; label: string }[] = [
   { value: 'fund', label: 'Private fund / mutual fund' },
@@ -18,8 +23,63 @@ const CLASS_OPTIONS: { value: AssetClass; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
+type Mode = 'market' | 'manual';
+
 export function AddAssetScreen({ portfolioId }: { portfolioId: string }) {
   const detail = useLiveQuery(() => loadPortfolioDetail(portfolioId), PORTFOLIO_STORES, [portfolioId]);
+  const settings = useLiveQuery(() => settingsRepo.market(), [S.settings]);
+  const [mode, setMode] = useState<Mode | null>(null);
+
+  if (detail.status !== 'ready' || settings.status !== 'ready') return <p className="muted">Loading…</p>;
+  if (!detail.data) {
+    return (
+      <div className="screen">
+        <a className="back-link" href={href.portfolios()}>
+          ‹ Portfolios
+        </a>
+        <p>Portfolio not found.</p>
+      </div>
+    );
+  }
+  const { portfolio, rows } = detail.data;
+  const hasKey = !!settings.data.apiKey;
+  const current: Mode = mode ?? (hasKey ? 'market' : 'manual');
+
+  return (
+    <div className="screen">
+      <a className="back-link" href={href.portfolio(portfolio.id)}>
+        ‹ {portfolio.name}
+      </a>
+      <h1 className="screen-title">Add asset</h1>
+      <div className="segmented segmented-large" role="group" aria-label="Price source">
+        <button type="button" aria-pressed={current === 'market'} onClick={() => setMode('market')}>
+          Market ticker
+        </button>
+        <button type="button" aria-pressed={current === 'manual'} onClick={() => setMode('manual')}>
+          Manual price
+        </button>
+      </div>
+      {current === 'market' ? (
+        hasKey ? (
+          <MarketAssetForm portfolio={portfolio} rows={rows} />
+        ) : (
+          <div className="card stack">
+            <p className="small">
+              Live prices for US-listed stocks and ETFs need a free Twelve Data API key. Add it in Settings, then come back here.
+            </p>
+            <a className="btn btn-primary btn-link" href={href.settings()}>
+              Open Settings
+            </a>
+          </div>
+        )
+      ) : (
+        <ManualAssetForm portfolio={portfolio} rows={rows} />
+      )}
+    </div>
+  );
+}
+
+function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: AssetRow[] }) {
   const today = todayLocal();
   const [form, setForm] = useState<ManualAssetFormInput>({
     name: '',
@@ -33,19 +93,6 @@ export function AddAssetScreen({ portfolioId }: { portfolioId: string }) {
   });
   const [errors, setErrors] = useState<FieldErrors & { form?: string }>({});
   const [busy, setBusy] = useState(false);
-
-  if (detail.status !== 'ready') return <p className="muted">Loading…</p>;
-  if (!detail.data) {
-    return (
-      <div className="screen">
-        <a className="back-link" href={href.portfolios()}>
-          ‹ Portfolios
-        </a>
-        <p>Portfolio not found.</p>
-      </div>
-    );
-  }
-  const { portfolio, rows } = detail.data;
 
   const set = (field: keyof ManualAssetFormInput) => (value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
@@ -78,23 +125,8 @@ export function AddAssetScreen({ portfolioId }: { portfolioId: string }) {
   })();
 
   return (
-    <form className="screen" onSubmit={submit} noValidate>
-      <a className="back-link" href={href.portfolio(portfolio.id)}>
-        ‹ {portfolio.name}
-      </a>
-      <h1 className="screen-title">Add asset</h1>
-
-      <div className="segmented segmented-large" role="group" aria-label="Price source">
-        <button type="button" aria-pressed="false" disabled>
-          Market ticker <span className="soon">soon</span>
-        </button>
-        <button type="button" aria-pressed="true">
-          Manual price
-        </button>
-      </div>
-      <p className="muted small">
-        US-listed tickers with live prices come with the market-data step. Use a manual price for private or unlisted funds.
-      </p>
+    <form className="stack" onSubmit={submit} noValidate>
+      <p className="muted small">For private or unlisted funds and stocks: you enter the price and update it yourself.</p>
 
       <section className="card stack">
         <Field label="Name" error={errors.name}>

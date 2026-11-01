@@ -13,6 +13,7 @@ import type { ManualAssetValues } from '../../domain/assets/manualAssetForm';
 import { holdingUpdateRecords, type HoldingUpdate } from '../../domain/assets/holdingUpdate';
 import { LedgerError, replayLedger } from '../../domain/portfolio/ledger';
 import { planAssetDeletion, type AssetDeletionPlan } from '../../domain/assets/deleteAsset';
+import type { MarketStart } from '../../domain/assets/marketAssetForm';
 import type { Deletion, Instrument, PortfolioAsset, PricePoint, Transaction } from '../../domain/types';
 import { getDb, S } from '../db/schema';
 import { newId, nextSeq } from '../ids';
@@ -80,6 +81,66 @@ export const assetRepo = {
       put(S.portfolioAssets, link);
       for (const p of prices) put(S.prices, p);
       for (const t of txs) put(S.transactions, t);
+    });
+    return link;
+  },
+
+  /** The shared definition of a ticker, if any portfolio already uses it. */
+  async findMarketInstrument(symbol: string): Promise<Instrument | undefined> {
+    const db = await getDb();
+    const rows = await db.getAllByIndex<Instrument>(S.instruments, 'symbol', symbol.toUpperCase());
+    return rows.find((i) => i.priceSource === 'market');
+  },
+
+  /**
+   * Adds a ticker to a portfolio in one atomic write: the instrument (reused if
+   * another portfolio already has it), the link, downloaded price points and
+   * an OPENING entry for a starting position.
+   */
+  async addMarketAsset(
+    portfolioId: string,
+    m: { symbol: string; name: string; exchange: string; assetClass: Instrument['assetClass'] },
+    start: MarketStart,
+    points: readonly Omit<PricePoint, 'instrumentId'>[],
+  ): Promise<PortfolioAsset> {
+    const db = await getDb();
+    const now = new Date().toISOString();
+    const symbol = m.symbol.toUpperCase();
+    const existing = await this.findMarketInstrument(symbol);
+    if (existing) {
+      const links = await db.getAllByIndex<PortfolioAsset>(S.portfolioAssets, 'portfolioId', portfolioId);
+      if (links.some((l) => l.instrumentId === existing.id)) throw new ValidationError(`${symbol} is already in this portfolio.`);
+    }
+    const instrument: Instrument = existing ?? {
+      id: newId(),
+      symbol,
+      name: m.name,
+      exchange: m.exchange,
+      assetClass: m.assetClass,
+      priceSource: 'market',
+      currency: 'USD',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const link: PortfolioAsset = { id: newId(), portfolioId, instrumentId: instrument.id, addedAt: now, updatedAt: now };
+    const tx: Transaction | null = start && {
+      id: newId(),
+      seq: nextSeq(),
+      portfolioId,
+      type: 'OPENING',
+      date: start.date,
+      instrumentId: instrument.id,
+      quantity: start.quantity.toString(),
+      price: start.costPerUnit.toString(),
+      amount: start.quantity.mul(start.costPerUnit).toString(),
+      note: 'Starting position',
+      createdAt: now,
+    };
+    await db.write([S.instruments, S.portfolioAssets, S.prices, S.transactions], ({ put }) => {
+      if (!existing) put(S.instruments, instrument);
+      put(S.portfolioAssets, link);
+      for (const p of points) put(S.prices, { ...p, instrumentId: instrument.id });
+      if (tx) put(S.transactions, tx);
     });
     return link;
   },
@@ -178,5 +239,12 @@ export const priceRepo = {
   },
   async listAll(): Promise<PricePoint[]> {
     return (await getDb()).getAll<PricePoint>(S.prices);
+  },
+  /** Writes market price points (a same-day point replaces the earlier one). */
+  async putMany(points: readonly PricePoint[]): Promise<void> {
+    if (points.length === 0) return;
+    await (await getDb()).write([S.prices], ({ put }) => {
+      for (const p of points) put(S.prices, p);
+    });
   },
 };

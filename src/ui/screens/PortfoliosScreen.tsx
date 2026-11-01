@@ -6,6 +6,7 @@ import { useLiveQuery } from '../../application/useLiveQuery';
 import { loadPortfolioSummaries, PORTFOLIO_STORES } from '../../application/portfolioQueries';
 import { Dialog } from '../components/Dialog';
 import { Gain } from '../components/Money';
+import { PriceStatusLine } from '../components/PriceStatusLine';
 import { formatUsd } from '../../domain/money/format';
 import { href } from '../../app/routes';
 import { backupRepo } from '../../data/repositories/backupRepo';
@@ -39,6 +40,7 @@ export function PortfoliosScreen() {
         </button>
       </header>
       <p className="muted small">Simulated money only · your data stays on this device</p>
+      <PriceStatusLine />
       {hasData && lastBackup.status === 'ready' && (
         <p className={`small backup-nudge ${backupAgeDays === null || backupAgeDays >= 7 ? 'warn-text' : 'muted'}`}>
           <span>{backupAgeDays === null ? 'Not backed up yet' : `Last backup ${describeAge(backupAgeDays)}`}</span>

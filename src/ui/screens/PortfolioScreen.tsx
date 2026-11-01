@@ -14,6 +14,8 @@ import { describeAge } from '../../domain/pricing/prices';
 import { ASSET_CLASS_LABELS } from '../../domain/types';
 import { href } from '../../app/routes';
 import { Gain } from '../components/Money';
+import { PriceStatusLine } from '../components/PriceStatusLine';
+import { marketPriceLabel } from '../components/priceLabels';
 import { Dialog } from '../components/Dialog';
 import { HoldingUpdateForm } from '../components/HoldingUpdateForm';
 import { assetRepo } from '../../data/repositories/assetRepo';
@@ -65,6 +67,8 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
           <Gain className="strong" amount={valuation.totalGain} pct={valuation.totalGainPct} />
         )}
       </header>
+
+      <PriceStatusLine />
 
       <div className="stat-grid">
         <Stat label="Invested" value={formatUsd(valuation.netInvested)} />
@@ -123,6 +127,7 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
           <HoldingUpdateForm
             unitsHeld={modal.row.quantity}
             currentPrice={modal.row.price?.price}
+            marketPriceOn={modal.row.instrument.priceSource === 'market' ? (date) => modal.row.priceOn(date)?.price : undefined}
             onCancel={close}
             onSubmit={async (update) => {
               await assetRepo.updateHolding(portfolio.id, modal.row.instrument.id, update);
@@ -161,7 +166,7 @@ function AllocationCard({ detail }: { detail: PortfolioDetail }) {
   const { valuation, rows, byClass } = detail;
   if (valuation.totalValue.isZero() || valuation.totalValue.isNegative()) return null;
 
-  const nameOf = new Map(rows.map((r) => [r.instrument.id, r.instrument.name]));
+  const nameOf = new Map(rows.map((r) => [r.instrument.id, r.instrument.symbol ?? r.instrument.name]));
   const slices: { key: string; label: string; weight: Dec; cash: boolean }[] =
     by === 'asset'
       ? [
@@ -222,35 +227,51 @@ function AllocationCard({ detail }: { detail: PortfolioDetail }) {
 function HoldingRow({ row, onUpdatePrice, onMore }: { row: AssetRow; onUpdatePrice: () => void; onMore: () => void }) {
   const { instrument, holding, quantity, price, manualStatus } = row;
   const manual = instrument.priceSource === 'manual';
+  const unitWord = manual ? 'units' : 'shares';
   return (
     <li className="holding">
       <div className="row-between baseline">
-        <span className="holding-name">{instrument.name}</span>
+        <span className="holding-name">
+          {instrument.symbol ? (
+            <>
+              {instrument.symbol} <span className="muted normal small">{instrument.name}</span>
+            </>
+          ) : (
+            instrument.name
+          )}
+        </span>
         <span className="row-end nowrap">
           <span className="strong">{holding ? formatUsd(holding.value) : '—'}</span>
-          <button className="btn-icon small-icon" aria-label={`More options for ${instrument.name}`} onClick={onMore}>
+          <button className="btn-icon small-icon" aria-label={`More options for ${instrument.symbol ?? instrument.name}`} onClick={onMore}>
             ···
           </button>
         </span>
       </div>
       <div className="row-between muted small wrap">
         <span>
-          {quantity.isZero() ? 'No units yet' : `${formatQty(quantity)} units`}
+          {quantity.isZero() ? `No ${unitWord} yet` : `${formatQty(quantity)} ${unitWord}`}
           {price && ` @ ${formatUsd(price.price, 4).replace(/(\.\d\d)00$/, '$1')}`} · {ASSET_CLASS_LABELS[instrument.assetClass]}
         </span>
         {holding && <Gain className="strong" amount={holding.gain} pct={holding.gainPct} />}
       </div>
-      {manual && (
-        <div className="row-between wrap">
+      <div className="row-between wrap">
+        {manual ? (
           <span className={`small ${manualStatus?.updateDue ? 'warn-text' : 'muted'}`}>
             Manual price · updated {price ? describeAge(manualStatus?.ageDays ?? 0) : 'never'}
             {manualStatus?.updateDue && ' · update due'}
           </span>
-          <button className="btn btn-small btn-outline" onClick={onUpdatePrice} aria-label={`Update units or price of ${instrument.name}`}>
-            Update units / price
-          </button>
-        </div>
-      )}
+        ) : (
+          <span className="small muted">{price ? marketPriceLabel(price) : 'Waiting for first price…'}</span>
+        )}
+        <button
+          className="btn btn-small btn-outline"
+          onClick={onUpdatePrice}
+          aria-label={manual ? `Update units or price of ${instrument.name}` : `Change shares of ${instrument.symbol}`}
+          disabled={!manual && !price}
+        >
+          {manual ? 'Update units / price' : 'Change shares'}
+        </button>
+      </div>
     </li>
   );
 }

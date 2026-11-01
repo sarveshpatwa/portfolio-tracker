@@ -19,6 +19,10 @@ export interface DatedPrice {
   price: Dec;
   date: IsoDate;
   source: PricePoint['source'];
+  /** Market prices: a live price taken during the session (not the final close). */
+  intraday: boolean;
+  /** When the point was written (ISO timestamp), if known. */
+  updatedAt?: string;
 }
 
 /** Latest point on or before `date` (or the latest overall when `date` is omitted). */
@@ -28,7 +32,15 @@ export function priceOnOrBefore(points: readonly PricePoint[], date?: IsoDate): 
     if (date && p.date > date) continue;
     if (!best || p.date > best.date) best = p;
   }
-  return best && { price: Dec.from(best.close), date: best.date, source: best.source };
+  return (
+    best && {
+      price: Dec.from(best.close),
+      date: best.date,
+      source: best.source,
+      intraday: best.intraday === true,
+      ...(best.updatedAt ? { updatedAt: best.updatedAt } : {}),
+    }
+  );
 }
 
 /** Groups points by instrument and picks each one's price on or before `date`. */

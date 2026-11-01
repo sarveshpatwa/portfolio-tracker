@@ -13,7 +13,7 @@ import { todayLocal, type IsoDate } from '../domain/calendar/dates';
 import { replayLedger } from '../domain/portfolio/ledger';
 import { valuePortfolio, type HoldingValue, type PortfolioValue } from '../domain/portfolio/valuation';
 import { breakdownByClass, type ClassSlice } from '../domain/portfolio/breakdown';
-import { manualPriceStatus, priceMap, pricesOnOrBefore, type DatedPrice, type ManualPriceStatus } from '../domain/pricing/prices';
+import { manualPriceStatus, priceMap, priceOnOrBefore, pricesOnOrBefore, type DatedPrice, type ManualPriceStatus } from '../domain/pricing/prices';
 import type { Instrument, Portfolio, PortfolioAsset, PricePoint, Transaction } from '../domain/types';
 import { portfolioRepo } from '../data/repositories/portfolioRepo';
 import { assetRepo, priceRepo, transactionRepo } from '../data/repositories/assetRepo';
@@ -36,6 +36,8 @@ export interface AssetRow {
   quantity: Dec;
   price?: DatedPrice;
   manualStatus?: ManualPriceStatus;
+  /** Price on (or the last one before) a date — used to price unit changes on past dates. */
+  priceOn: (date: IsoDate) => DatedPrice | undefined;
 }
 
 export interface PortfolioDetail {
@@ -123,9 +125,11 @@ function compute(
     if (!instrument) continue; // defensive: a link to a missing instrument is skipped, not fatal
     const price = dated.get(instrument.id);
     const holding = holdingsById.get(instrument.id);
+    const own = allPrices.filter((p) => p.instrumentId === instrument.id);
     rows.push({
       link,
       instrument,
+      priceOn: (date) => priceOnOrBefore(own, date),
       holding,
       quantity: holding?.quantity ?? Dec.ZERO,
       price,

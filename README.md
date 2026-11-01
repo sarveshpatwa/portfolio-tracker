@@ -155,12 +155,14 @@ src/
     pricing/      Price on a date, manual-price freshness and reminders
     assets/       Add asset / Update holding validation, delete-asset plan
     sync/         Backup file format + merge rules (two-device use)
+    market/       US market hours (DST-safe), free-plan budget + credit limiter, history gaps
     contributions/ Allocation validation, purchase planner, recurring schedule, ledger entries
     switches/     Opening positions for past-dated portfolios, statement check, switch cost
     types.ts      Shared data shapes
   data/
     db/           IndexedDB wrapper + schema/migrations
-    repositories/ Read/write functions per entity
+    repositories/ Read/write functions per entity (+ device settings)
+    providers/    MarketDataProvider interface + Twelve Data adapter (swap here)
 public/           manifest, service worker, icons
 tests/            Unit tests, mirroring src/domain
 ```
@@ -190,6 +192,27 @@ later without touching the domain layer.
 
 ---
 
+## Live prices (Twelve Data, free)
+
+1. Create a free account at <https://twelvedata.com/pricing> (Basic plan) and copy your API key.
+2. In the app: **Settings → Market data** → paste the key → **Save and test**.
+3. **Add asset → Market ticker** → search a US ticker or name → pick it → optionally enter
+   shares and a purchase date (leave the cost empty to use that day's closing price).
+
+How it stays within the free 8 credits/minute and 800/day:
+
+- Live quotes only during US market hours (9:30–16:00 New York time), every 5–30 minutes
+  (your choice), automatically spaced out if you hold many tickers. 1 credit per ticker.
+- A ticker's daily history is downloaded once (1 credit), then only missing days.
+  Today's live price becomes the closing price after the bell — no extra request.
+- Downloaded market prices are **not** put in backups (they'd be large); each device
+  downloads its own after a restore.
+- Prices refresh only while the app is open (iOS pauses web apps in the background).
+
+If prices never load and Settings says the browser blocked the request, Twelve Data is
+refusing calls from web pages. The **Advanced → API address** field lets you point the
+app at a small free proxy (e.g. a Cloudflare Worker) instead — ask and it can be added.
+
 ## Data and privacy
 
 - All data is stored in this browser's IndexedDB, on this device only. Nothing
@@ -212,7 +235,7 @@ later without touching the domain layer.
 | 2 | Manual-price assets, starting positions, units/price updates, reminders, delete asset, portfolio dashboard | ✅ |
 | 3 | Backup & restore with **merge** (use the laptop and iPhone side by side), delete all data | ✅ |
 | 4 | Free HTTPS hosting (GitHub Pages), offline mode, install on iPhone | ✅ |
-| 5 | Market data: Twelve Data provider behind an interface, price cache, rate limiter, Settings (API key) | |
+| 5 | Market data: ticker search, live prices during US market hours, daily history, credit limiter, Settings (API key) | ✅ |
 | 6 | Money & allocation: versioned targets, one-time and recurring contributions, catch-up, ledger screen | |
 | 7 | Dashboard: performance chart (1D–All), projection | |
 | 8 | Signals & risk profile | |

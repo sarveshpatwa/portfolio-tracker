@@ -28,8 +28,14 @@ export const backupRepo = {
     return Object.fromEntries(SNAPSHOT_STORES.map((s, i) => [s, lists[i]])) as unknown as Snapshot;
   },
 
+  /**
+   * Downloaded market prices are left out: they can be large (years of daily
+   * closes per ticker) and each device re-downloads them from the provider.
+   * Manual prices are included — they exist only because you typed them.
+   */
   async createBackup(): Promise<BackupFile> {
-    return makeBackup(await this.snapshot(), DB_VERSION);
+    const snap = await this.snapshot();
+    return makeBackup({ ...snap, prices: snap.prices.filter((p) => p.source === 'manual') }, DB_VERSION);
   },
 
   /** Call after the file was actually shared or downloaded. */
