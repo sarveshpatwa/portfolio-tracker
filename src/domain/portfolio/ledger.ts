@@ -57,17 +57,25 @@ export function sortTransactions(txs: readonly Transaction[]): Transaction[] {
  * corrupt data, and silently continuing would hide it.
  */
 export function replayLedger(txs: readonly Transaction[], asOf?: IsoDate): LedgerState {
-  const state: LedgerState = {
-    cash: Dec.ZERO,
-    positions: new Map(),
-    netInvested: Dec.ZERO,
-    realizedGain: Dec.ZERO,
-    feesPaid: Dec.ZERO,
-    income: Dec.ZERO,
-  };
-
+  const state = emptyLedgerState();
   for (const tx of sortTransactions(txs)) {
     if (asOf && tx.date > asOf) break;
+    applyTransaction(state, tx);
+  }
+  return state;
+}
+
+export function emptyLedgerState(): LedgerState {
+  return { cash: Dec.ZERO, positions: new Map(), netInvested: Dec.ZERO, realizedGain: Dec.ZERO, feesPaid: Dec.ZERO, income: Dec.ZERO };
+}
+
+/**
+ * Applies ONE transaction to `state` in place. Callers must apply
+ * transactions in ledger order (sortTransactions); used for incremental
+ * replays such as the daily value history.
+ */
+export function applyTransaction(state: LedgerState, tx: Transaction): void {
+  {
     const amount = Dec.from(tx.amount);
 
     switch (tx.type) {
@@ -132,7 +140,6 @@ export function replayLedger(txs: readonly Transaction[], asOf?: IsoDate): Ledge
       }
     }
   }
-  return state;
 }
 
 function requireTrade(tx: Transaction): { instrumentId: Id; quantity: Dec } {

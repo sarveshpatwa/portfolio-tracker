@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Sparkline } from '../components/PerformanceChart';
 import type { Portfolio } from '../../domain/types';
 import { MAX_NAME_LENGTH, portfolioRepo } from '../../data/repositories/portfolioRepo';
 import { S } from '../../data/db/schema';
@@ -65,7 +66,7 @@ export function PortfoliosScreen() {
       )}
       {portfolios.status === 'ready' && portfolios.data.length > 0 && (
         <ul className="list" aria-label="Your portfolios">
-          {portfolios.data.map(({ portfolio: p, valuation, assetCount, pricesDue, recurring }) => (
+          {portfolios.data.map(({ portfolio: p, valuation, assetCount, pricesDue, recurring, trend }) => (
             <li key={p.id} className="card portfolio-card">
               <div className="row-between">
                 <h2 className="card-title">
@@ -90,11 +91,14 @@ export function PortfoliosScreen() {
               </div>
               <div className="row-between baseline wrap">
                 <span className="big-number">{formatUsd(valuation.totalValue)}</span>
-                {valuation.netInvested.isZero() ? (
-                  <span className="muted small">No money in yet</span>
-                ) : (
-                  <Gain className="small strong" amount={valuation.totalGain} pct={valuation.totalGainPct} />
-                )}
+                <span className="row-end nowrap">
+                  <Sparkline series={trend} />
+                  {valuation.netInvested.isZero() ? (
+                    <span className="muted small">No money in yet</span>
+                  ) : (
+                    <Gain className="small strong" amount={valuation.totalGain} pct={valuation.totalGainPct} />
+                  )}
+                </span>
               </div>
               <span className="muted small">
                 {assetCount === 0 ? 'No assets yet' : `${assetCount} ${assetCount === 1 ? 'asset' : 'assets'}`}

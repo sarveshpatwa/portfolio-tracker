@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLiveQuery } from '../../application/useLiveQuery';
 import {
   loadPortfolioDetail,
+  loadPortfolioHistory,
   previewAssetDeletion,
   PORTFOLIO_STORES,
   type AssetDeletionPreview,
@@ -20,6 +21,8 @@ import { Dialog } from '../components/Dialog';
 import { HoldingUpdateForm } from '../components/HoldingUpdateForm';
 import { assetRepo } from '../../data/repositories/assetRepo';
 import { LinkStatusLine, PriceLinkEditor } from '../components/PriceLink';
+import { PerformanceChart } from '../components/PerformanceChart';
+import { ProjectionCard } from '../components/ProjectionCard';
 
 /** Bar colours for allocation slices, largest first. They step in lightness so they stay distinguishable without hue. */
 const SLICE_COLORS = ['#1F5FBF', '#5585CF', '#8BAADF', '#B9CDEB', '#DCE6F5'];
@@ -91,6 +94,8 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
           {valuation.missingPrices.length} holding(s) have no price yet, so they count as $0 in the total.
         </div>
       )}
+
+      <PerformanceSection portfolioId={portfolio.id} />
 
       <AllocationCard detail={detail.data} />
 
@@ -238,6 +243,18 @@ function AllocationCard({ detail }: { detail: PortfolioDetail }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+function PerformanceSection({ portfolioId }: { portfolioId: string }) {
+  const history = useLiveQuery(() => loadPortfolioHistory(portfolioId), PORTFOLIO_STORES, [portfolioId]);
+  if (history.status !== 'ready') return null;
+  const { series, annual, yearlyContribution } = history.data;
+  return (
+    <>
+      <PerformanceChart series={series} />
+      <ProjectionCard series={series} annual={annual} yearlyContribution={yearlyContribution} />
+    </>
   );
 }
 

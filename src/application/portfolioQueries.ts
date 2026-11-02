@@ -9,7 +9,7 @@
  */
 
 import { Dec } from '../domain/money/decimal';
-import { todayLocal, type IsoDate } from '../domain/calendar/dates';
+import { addMonths, todayInNewYork, todayLocal, type IsoDate } from '../domain/calendar/dates';
 import { replayLedger } from '../domain/portfolio/ledger';
 import { valuePortfolio, type HoldingValue, type PortfolioValue } from '../domain/portfolio/valuation';
 import { breakdownByClass, type ClassSlice } from '../domain/portfolio/breakdown';
@@ -22,6 +22,8 @@ import { contributionRepo } from '../data/repositories/contributionRepo';
 import { nextScheduledDate } from '../domain/contributions/schedule';
 import { FREQUENCIES } from '../domain/contributions/forms';
 import { formatUsd } from '../domain/money/format';
+import { cagr, thin, valueHistory, type DayValue } from '../domain/portfolio/history';
+import { yearlyContributions } from '../domain/portfolio/projection';
 
 const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
@@ -30,6 +32,8 @@ export const PORTFOLIO_STORES = [S.portfolios, S.portfolioAssets, S.instruments,
 
 export interface PortfolioSummary {
   portfolio: Portfolio;
+  /** Value over the last 3 months (thinned) for the card's trend line. */
+  trend: DayValue[];
   assetCount: number;
   valuation: PortfolioValue;
   pricesDue: number;
@@ -69,8 +73,11 @@ export async function loadPortfolioSummaries(today: IsoDate = todayLocal()): Pro
   return portfolios.map((p) => {
     const own = links.filter((l) => l.portfolioId === p.id);
     const detail = compute(p, own, instrumentsById, txs.filter((t) => t.portfolioId === p.id), prices, today);
+    const series = historyFor(txs.filter((t) => t.portfolioId === p.id), prices, today);
+    const from = addMonths(series[series.length - 1]?.date ?? today, -3);
     return {
       portfolio: p,
+      trend: thin(series.filter((d) => d.date >= from), 48),
       assetCount: own.length,
       valuation: detail.valuation,
       pricesDue: detail.rows.filter((r) => r.manualStatus?.updateDue).length,
@@ -158,4 +165,30 @@ function compute(
 
   const byClass = breakdownByClass(valuation, (id) => instrumentsById.get(id)?.assetClass ?? 'other');
   return { portfolio, rows, valuation, byClass, ledgerCount: txs.length };
+}
+
+/**
+ * History ends on today's New York date (trading days are New York days).
+ * A manual price typed with a later local date (India is ahead) is moved onto
+ * that end date so it still counts, matching the dashboard total.
+ */
+function historyFor(txs: readonly Transaction[], prices: readonly PricePoint[], localToday: IsoDate): DayValue[] {
+  const ny = todayInNewYork();
+  const end = ny < localToday ? ny : localToday;
+  const pts = prices.filter((p) => p.date <= localToday).map((p) => (p.date > end ? { ...p, date: end } : p));
+  return valueHistory(txs.map((t) => (t.date > end ? { ...t, date: end } : t)), pts, end);
+}
+
+export interface PortfolioHistory {
+  series: DayValue[];
+  /** Annualised return, or null with under 3 months of history. */
+  annual: { rate: number; days: number } | null;
+  /** Yearly amount of running recurring contributions. */
+  yearlyContribution: number;
+}
+
+export async function loadPortfolioHistory(portfolioId: string, today: IsoDate = todayLocal()): Promise<PortfolioHistory> {
+  const [txs, prices, rules] = await Promise.all([transactionRepo.listForPortfolio(portfolioId), priceRepo.listAll(), contributionRepo.rules(portfolioId)]);
+  const series = historyFor(txs, prices, today);
+  return { series, annual: cagr(series), yearlyContribution: yearlyContributions(rules, today) };
 }

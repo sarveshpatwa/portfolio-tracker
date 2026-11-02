@@ -288,6 +288,26 @@ Open a portfolio → **Add money**.
 Using both devices: each scheduled buy gets a fixed id (rule + date), so if the laptop and
 the iPhone both run it, merging backups keeps one copy.
 
+## Performance chart and projection
+
+Open a portfolio: below the totals is **Performance**.
+
+- **Lines:** portfolio value (solid blue) and amount invested (dashed grey). The gap is your gain.
+- **Ranges:** 1D / 1W / 1M / 1Y / All (your choice is remembered). The headline shows the
+  **time-weighted return** for the range — money you add doesn't count as growth — and the
+  change in gain in dollars.
+- **Read a day:** tap or drag on the chart (or focus it and use ← →). *Show as table* lists the numbers.
+- **1D** compares the latest value with the previous trading day's close (the free data plan
+  has no minute-by-minute prices). On weekends it shows Friday's move.
+- Market assets use each day's closing price; manual and Vanguard-linked assets keep their
+  last price until the next one (like a fund statement).
+
+**Projection (Estimate)** extends the portfolio's own annualised return 1, 5 and 10 years,
+including running recurring contributions (can be switched off). You can type your own growth
+rate (e.g. 5 or 7%) to compare. It appears after about 3 months of history and always lists its
+assumptions: steady growth, contributions continue, no fees or taxes, past returns don't predict
+future ones. Formulas are in `src/domain/portfolio/history.ts` and `projection.ts`.
+
 ## Data and privacy
 
 - All data is stored in this browser's IndexedDB, on this device only. Nothing
@@ -313,6 +333,6 @@ the iPhone both run it, merging backups keeps one copy.
 | 5 | Market data: ticker search, live prices during US market hours, daily history, credit limiter, Settings (API key) | ✅ |
 | 6 | Money & allocation: versioned targets, buy rules, one-time and recurring contributions (with back-fill and catch-up), ledger + CSV | ✅ |
 | 6.5 | Price links: daily prices for Vanguard funds without a ticker, via your free Cloudflare relay | ✅ |
-| 7 | Dashboard: performance chart (1D–All), projection | |
+| 7 | Dashboard: performance chart (1D–All, time-weighted return), projection estimate, card trend lines | ✅ |
 | 8 | Signals & risk profile | |
 | 9 | Compare: equal-money backtest, TWR view, Sharpe, drawdown; Track a switch | |
