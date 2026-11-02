@@ -44,7 +44,7 @@ export function PriceLinkSettingsCard() {
     const tErr = checkFeedTemplate(template);
     if (tErr) next.template = tErr;
     const f = parsePriceLink(fund);
-    if (r && !f.ok) next.fund = 'Enter a fund number (or link) to test with.';
+    if (r && !f.ok) next.fund = 'Enter a fund number or code (e.g. 0066 or N467), or a fund page link, to test with.';
     setErrors(next);
     if (Object.keys(next).length) return;
 
@@ -93,8 +93,8 @@ export function PriceLinkSettingsCard() {
             />
           )}
         </Field>
-        <Field label="Test with fund number" error={errors.fund}>
-          {(p) => <input {...p} className="input" inputMode="numeric" value={fund} onChange={(e) => setFund(e.target.value)} />}
+        <Field label="Test with fund number or code" error={errors.fund}>
+          {(p) => <input {...p} className="input" autoCapitalize="characters" autoComplete="off" value={fund} onChange={(e) => setFund(e.target.value)} />}
         </Field>
         <details className="details">
           <summary>Advanced</summary>

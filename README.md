@@ -242,13 +242,19 @@ few per fund per day.
    test**. It should say *"Relay works — fund 0066 is $1.0000 (…)"*.
    Do this on the laptop **and** the iPhone (device settings aren't in backups).
 
-### Using it
+### Using it (one-time setup per fund)
 
-- **New asset:** Add asset → Manual price → paste the fund's Vanguard page link (or just its
-  fund number) under *Daily price from Vanguard*. Leave the price empty to start from
-  Vanguard's latest price.
-- **Existing asset:** tap **···** on the holding → paste the link → **Save link**. The same
-  place has **Fetch now**, **Open Vanguard page** and removing the link.
+- **All funds at once:** **Settings → Your funds** lists every manual-price asset across all
+  portfolios (the same fund held in two portfolios is one row, matched by name). Type each
+  Vanguard fund's code once — e.g. `0066` or `N467` — and tap **Save codes**. That's it:
+  from then on prices are fetched automatically. **Fetch all now** forces a refresh.
+- **New asset:** Add asset → Manual price → paste the fund's Vanguard page link or code
+  under *Daily price from Vanguard*. Leave the price empty to start from Vanguard's latest price.
+- **One asset:** tap **···** on the holding → paste the link or code → **Save link** (also
+  applied to the same fund in your other portfolios). The same place has **Fetch now**,
+  **Open Vanguard page** and removing the link.
+- Prices you typed **before** setting up a code (e.g. starting prices) are replaced by
+  Vanguard's price for the same day. Prices you type **after** setup win on their date.
 - Prices are fetched when the app opens and while it's open, once Vanguard has published
   the day's price (US evening; India early morning). If a fetch fails, the holding says so
   and keeps the last price.

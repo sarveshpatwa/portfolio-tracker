@@ -17,7 +17,9 @@
  *
  * Rules
  * -----
- *  - A price you typed yourself always wins over a fetched one on the same date.
+ *  - A price you type after setting up the link wins over a fetched one on the
+ *    same date. Prices typed before the link existed (e.g. the starting price)
+ *    are replaced by Vanguard's price for that date.
  *  - Fetching is due when the newest stored price is older than the latest
  *    completed US trading day, at most once every RETRY_HOURS per fund
  *    (fund prices are published in the evening, New York time, so an early
@@ -31,12 +33,16 @@ import type { PricePoint } from '../types';
 export const DEFAULT_FEED_TEMPLATE = 'https://api.vanguard.com/rs/ire/01/pe/fund/{id}/price.json';
 export const RETRY_HOURS = 2;
 const ALLOWED_HOST = /(^|\.)vanguard\.com$/i;
+/** Fund numbers are digits ("0066"); some plan/trust funds have a letter prefix ("N467"). */
+const FUND_CODE = /^[A-Za-z]{0,2}\d{2,6}$/;
 
 export interface PriceLink {
   /** What the user pasted (opened by the "Open page" button). Empty when only a number was entered. */
   url: string;
-  /** Vanguard's fund number, e.g. "0066". */
+  /** Vanguard's fund number or code, e.g. "0066", or "N467" for some trust/plan funds. */
   fundId: string;
+  /** When this code was set up (ISO). Prices typed before then don't block fetched ones. */
+  since?: string;
 }
 
 export type ParseLinkResult = { ok: true; link: PriceLink } | { ok: false; error: string };
@@ -50,7 +56,7 @@ export type ParseLinkResult = { ok: true; link: PriceLink } | { ok: false; error
 export function parsePriceLink(text: string): ParseLinkResult {
   const raw = text.trim();
   if (!raw) return { ok: false, error: 'Paste the fund’s Vanguard page link.' };
-  if (/^\d{2,6}$/.test(raw)) return { ok: true, link: { url: '', fundId: raw } };
+  if (FUND_CODE.test(raw)) return { ok: true, link: { url: '', fundId: raw.toUpperCase() } };
 
   let u: URL;
   try {
@@ -69,7 +75,7 @@ export function parsePriceLink(text: string): ParseLinkResult {
     u.searchParams.get('intPort') ?? '',
     ...[...segments].reverse(),
   ];
-  const fundId = candidates.find((c) => /^\d{2,6}$/.test(c));
+  const fundId = candidates.find((c) => FUND_CODE.test(c))?.toUpperCase();
   if (!fundId) return { ok: false, error: 'Couldn’t find the fund number in that link. Open the fund’s overview page and copy its address.' };
   return { ok: true, link: { url: u.toString(), fundId } };
 }
@@ -176,6 +182,19 @@ export function toIsoDate(v: unknown): IsoDate | null {
   return null;
 }
 
+/**
+ * Newest date that counts as "already have the price": fetched prices, and
+ * prices typed after the link was set up (those win, so fetching is pointless).
+ */
+export function newestSettledDate(points: readonly PricePoint[], linkSince?: string): IsoDate | undefined {
+  let newest: IsoDate | undefined;
+  for (const p of points) {
+    const counts = p.source === 'link' || (p.source === 'manual' && (linkSince === undefined || (p.updatedAt !== undefined && p.updatedAt > linkSince)));
+    if (counts && (!newest || p.date > newest)) newest = p.date;
+  }
+  return newest;
+}
+
 /** Whether a fund's price should be fetched now. */
 export function linkFetchDue(newestPriceDate: IsoDate | undefined, lastAttemptMs: number | undefined, nowMs: number, latestTradingDay: IsoDate): boolean {
   if (newestPriceDate && newestPriceDate >= latestTradingDay) return false;
@@ -186,10 +205,20 @@ export function linkFetchDue(newestPriceDate: IsoDate | undefined, lastAttemptMs
  * The point to store for a fetched price, or null when nothing should change:
  * a price you typed for that date wins, and an identical fetched price isn't rewritten.
  */
-export function linkPricePoint(existing: readonly PricePoint[], instrumentId: string, fetched: FeedPrice, now: string, today: IsoDate): PricePoint | null {
+export function linkPricePoint(
+  existing: readonly PricePoint[],
+  instrumentId: string,
+  fetched: FeedPrice,
+  now: string,
+  today: IsoDate,
+  linkSince?: string,
+): PricePoint | null {
   if (fetched.date > today) return null; // clock/timezone oddity: never store a future price
   const same = existing.find((p) => p.instrumentId === instrumentId && p.date === fetched.date);
-  if (same?.source === 'manual') return null;
+  // A price typed after the link was set up wins. One typed before (e.g. the
+  // starting price when the asset was added) is replaced by Vanguard's.
+  const typedBeforeLink = linkSince !== undefined && same?.updatedAt !== undefined && same.updatedAt <= linkSince;
+  if (same?.source === 'manual' && !typedBeforeLink) return null;
   if (same && Dec.from(same.close).eq(fetched.price)) return null;
   return { instrumentId, date: fetched.date, close: fetched.price.toString(), source: 'link', updatedAt: now };
 }

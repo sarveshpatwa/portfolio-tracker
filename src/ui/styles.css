@@ -969,3 +969,8 @@ input[type='date'].input {
 .ledger-head .row-between > span:first-child {
   min-width: 0;
 }
+
+/* Settings → Your funds */
+.fund-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.fund-row { padding-top: 12px; border-top: 1px solid var(--border); }
+.fund-row:first-child { border-top: 0; padding-top: 0; }

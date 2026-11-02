@@ -5,6 +5,7 @@ import {
   feedUrl,
   linkFetchDue,
   linkPricePoint,
+  newestSettledDate,
   parseFeedPrice,
   parsePriceLink,
   relayRequestUrl,
@@ -34,6 +35,15 @@ describe('parsePriceLink', () => {
     const r = parsePriceLink(' 0066 ');
     expect(r.ok && r.link.fundId).toBe('0066');
     expect(r.ok && r.link.url).toBe('');
+  });
+  it('accepts fund codes with a letter prefix (trust/plan funds), as typed or in a link', () => {
+    expect(parsePriceLink('N467').ok && (parsePriceLink('N467') as { link: { fundId: string } }).link.fundId).toBe('N467');
+    const typed = parsePriceLink(' n886 ');
+    expect(typed.ok && typed.link.fundId).toBe('N886');
+    const link = parsePriceLink('https://investor.vanguard.com/mutual-funds/profile/pe/overview/N467?intPort=N467&SelectedPlanId=093238');
+    expect(link.ok && link.link.fundId).toBe('N467');
+    expect(parsePriceLink('NAV').ok).toBe(false);
+    expect(feedUrl('', 'N467')).toBe('https://api.vanguard.com/rs/ire/01/pe/fund/N467/price.json');
   });
   it('rejects non-Vanguard and non-https links, and junk', () => {
     expect(parsePriceLink('https://example.com/overview/0066').ok).toBe(false);
@@ -126,6 +136,20 @@ describe('linkPricePoint', () => {
     const same: PricePoint = { instrumentId: 'F', date: '2026-10-30', close: '1.020', source: 'link' };
     expect(linkPricePoint([same], 'F', fetched, at, '2026-10-31')).toBeNull();
     expect(linkPricePoint([{ ...same, close: '1.00' }], 'F', fetched, at, '2026-10-31')?.close).toBe('1.02');
+  });
+  it('replaces a price typed before the link was set up, keeps one typed after', () => {
+    const typed: PricePoint = { instrumentId: 'F', date: '2026-10-30', close: '1.01', source: 'manual', updatedAt: '2026-10-30T09:00:00Z' };
+    expect(linkPricePoint([typed], 'F', fetched, at, '2026-10-31', '2026-10-30T12:00:00Z')?.close).toBe('1.02');
+    expect(linkPricePoint([typed], 'F', fetched, at, '2026-10-31', '2026-10-30T08:00:00Z')).toBeNull();
+  });
+  it('newestSettledDate ignores prices typed before the link', () => {
+    const pts: PricePoint[] = [
+      { instrumentId: 'F', date: '2026-11-02', close: '1', source: 'manual', updatedAt: '2026-11-02T10:00:00Z' },
+      { instrumentId: 'F', date: '2026-10-30', close: '1', source: 'link' },
+    ];
+    expect(newestSettledDate(pts, '2026-11-02T12:00:00Z')).toBe('2026-10-30');
+    expect(newestSettledDate(pts, '2026-11-01T00:00:00Z')).toBe('2026-11-02');
+    expect(newestSettledDate(pts)).toBe('2026-11-02');
   });
   it('ignores a date after today', () => {
     expect(linkPricePoint([], 'F', fetched, at, '2026-10-29')).toBeNull();

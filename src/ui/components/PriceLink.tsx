@@ -42,13 +42,17 @@ export function PriceLinkEditor({ instrument }: { instrument: Instrument }) {
   const [text, setText] = useState(instrument.priceLink?.url || instrument.priceLink?.fundId || '');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [alsoIn, setAlsoIn] = useState(0);
   const [busy, setBusy] = useState(false);
   const current = instrument.priceLink;
 
   const save = async () => {
     setSaved(false);
+    // The same fund (same name) in other portfolios gets the same link.
+    const ids = await assetRepo.sameFundIds(instrument.id);
+    setAlsoIn(ids.length - 1);
     if (!text.trim()) {
-      await assetRepo.setPriceLink(instrument.id, undefined);
+      await assetRepo.setPriceLink(ids, undefined);
       setError(null);
       setSaved(true);
       void linkPriceService.runDue(); // forgets the old fetch status
@@ -62,9 +66,9 @@ export function PriceLinkEditor({ instrument }: { instrument: Instrument }) {
     setError(null);
     setBusy(true);
     try {
-      await assetRepo.setPriceLink(instrument.id, r.link);
+      await assetRepo.setPriceLink(ids, r.link);
       setSaved(true);
-      await linkPriceService.runDue({ force: true, only: instrument.id });
+      await linkPriceService.runDue({ force: true, only: ids });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Saving failed.');
     } finally {
@@ -117,6 +121,7 @@ export function PriceLinkEditor({ instrument }: { instrument: Instrument }) {
       <p className="small" role="status">
         {saved && !current && 'Link removed.'}
         {saved && current && !state.fetching && !state.error && 'Saved.'}
+        {saved && alsoIn > 0 && ` Also applied to the same fund in ${alsoIn === 1 ? '1 other portfolio' : `${alsoIn} other portfolios`}.`}
         {current && state.error && <span className="warn-text">Last fetch: {state.error}</span>}
         {current && !state.relaySet && (
           <span className="warn-text">

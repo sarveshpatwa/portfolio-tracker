@@ -7,6 +7,7 @@ import { describeChanges, type MergePlan } from '../../domain/sync/merge';
 import { Dialog } from '../components/Dialog';
 import { MarketSettingsCard } from '../components/MarketSettingsCard';
 import { PriceLinkSettingsCard } from '../components/PriceLinkSettingsCard';
+import { FundLinksCard } from '../components/FundLinksCard';
 import { priceService } from '../../application/priceService';
 import { describeAge } from '../../domain/pricing/prices';
 import { daysBetween, todayLocal } from '../../domain/calendar/dates';
@@ -166,6 +167,7 @@ export function SettingsScreen() {
 
       <MarketSettingsCard />
       <PriceLinkSettingsCard />
+      <FundLinksCard />
 
       <section className="card stack" aria-labelledby="danger-title">
         <h2 id="danger-title" className="section-title">

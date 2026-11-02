@@ -19,6 +19,7 @@ import { getDb, S } from '../db/schema';
 import { newId, nextSeq } from '../ids';
 import { ValidationError } from './errors';
 import type { PriceLink } from '../../domain/pricing/priceLink';
+import { groupKey } from '../../domain/pricing/fundGroups';
 
 export const assetRepo = {
   async listForPortfolio(portfolioId: string): Promise<PortfolioAsset[]> {
@@ -44,7 +45,7 @@ export const assetRepo = {
       assetClass: v.assetClass,
       priceSource: 'manual',
       currency: 'USD',
-      ...(v.priceLink ? { priceLink: v.priceLink } : {}),
+      ...(v.priceLink ? { priceLink: { ...v.priceLink, since: now } } : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -184,15 +185,36 @@ export const assetRepo = {
     });
   },
 
-  /** Adds, changes or removes (undefined) a manual asset's price link. */
-  async setPriceLink(instrumentId: string, link: PriceLink | undefined): Promise<void> {
+  /**
+   * Adds, changes or removes (undefined) the price link of one or more manual
+   * assets in one atomic write (e.g. the same fund in several portfolios).
+   */
+  async setPriceLink(instrumentIds: string | readonly string[], link: PriceLink | undefined): Promise<void> {
+    const ids = typeof instrumentIds === 'string' ? [instrumentIds] : instrumentIds;
     const db = await getDb();
-    const instrument = await db.get<Instrument>(S.instruments, instrumentId);
-    if (!instrument) throw new ValidationError('That asset no longer exists.');
-    if (instrument.priceSource !== 'manual') throw new ValidationError('Only manual-price assets can use a price link.');
-    const { priceLink: _old, ...rest } = instrument;
-    const updated: Instrument = { ...rest, ...(link ? { priceLink: link } : {}), updatedAt: new Date().toISOString() };
-    await db.write([S.instruments], ({ put }) => put(S.instruments, updated));
+    const now = new Date().toISOString();
+    const updated: Instrument[] = [];
+    for (const id of ids) {
+      const instrument = await db.get<Instrument>(S.instruments, id);
+      if (!instrument) throw new ValidationError('That asset no longer exists.');
+      if (instrument.priceSource !== 'manual') throw new ValidationError('Only manual-price assets can use a price link.');
+      const { priceLink: old, ...rest } = instrument;
+      // Keep the setup time when the code is unchanged (e.g. only the page address changed).
+      const since = old && link && old.fundId === link.fundId && old.since ? old.since : now;
+      updated.push({ ...rest, ...(link ? { priceLink: { ...link, since } } : {}), updatedAt: now });
+    }
+    await db.write([S.instruments], ({ put }) => {
+      for (const i of updated) put(S.instruments, i);
+    });
+  },
+
+  /** Ids of manual assets (any portfolio) with the same name — the same fund held elsewhere. */
+  async sameFundIds(instrumentId: string): Promise<string[]> {
+    const all = await this.listInstruments();
+    const me = all.find((i) => i.id === instrumentId);
+    if (!me) return [instrumentId];
+    const key = groupKey(me.name);
+    return all.filter((i) => i.priceSource === 'manual' && groupKey(i.name) === key).map((i) => i.id);
   },
 
   async setReminder(link: PortfolioAsset, reminderDays: number | undefined): Promise<void> {

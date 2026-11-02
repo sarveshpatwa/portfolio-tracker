@@ -10,7 +10,7 @@
 
 import { latestCompletedTradingDay } from '../domain/market/marketHours';
 import { todayInNewYork } from '../domain/calendar/dates';
-import { linkFetchDue, linkPricePoint, type FeedPrice } from '../domain/pricing/priceLink';
+import { linkFetchDue, linkPricePoint, newestSettledDate, type FeedPrice } from '../domain/pricing/priceLink';
 import type { Id, Instrument } from '../domain/types';
 import { assetRepo, priceRepo } from '../data/repositories/assetRepo';
 import { settingsRepo, type LinkAttempts } from '../data/repositories/settingsRepo';
@@ -63,13 +63,13 @@ class LinkPriceService {
    * Fetches every due fund. `force` fetches now regardless of the schedule
    * (all funds, or only `only`). Returns how many prices were saved.
    */
-  runDue(opts: { force?: boolean; only?: Id } = {}, now = new Date()): Promise<number> {
+  runDue(opts: { force?: boolean; only?: Id | readonly Id[] } = {}, now = new Date()): Promise<number> {
     const run = this.queue.then(() => this.doRun(opts, now));
     this.queue = run.catch(() => undefined);
     return run;
   }
 
-  private async doRun(opts: { force?: boolean; only?: Id }, now: Date): Promise<number> {
+  private async doRun(opts: { force?: boolean; only?: Id | readonly Id[] }, now: Date): Promise<number> {
     const linked = (await assetRepo.listInstruments()).filter((i): i is Instrument & { priceLink: NonNullable<Instrument['priceLink']> } => !!i.priceLink);
     const settings = await settingsRepo.links();
     this.attempts = await settingsRepo.linkAttempts();
@@ -84,18 +84,22 @@ class LinkPriceService {
     const today = todayInNewYork(now);
     let saved = 0;
     let changed = relayWasSet !== this.relaySet;
+    // The same fund in several portfolios is fetched once per run.
+    const results = new Map<string, Promise<FeedPrice>>();
     for (const inst of linked) {
       const points = await priceRepo.listForInstrument(inst.id);
-      const newest = points.reduce<string | undefined>((m, p) => (!m || p.date > m ? p.date : m), undefined);
-      const forced = opts.force && (!opts.only || opts.only === inst.id);
+      const newest = newestSettledDate(points, inst.priceLink.since);
+      const forced = opts.force && (!opts.only || (typeof opts.only === 'string' ? opts.only === inst.id : opts.only.includes(inst.id)));
       if (!forced && !linkFetchDue(newest, this.attempts[inst.id]?.at, now.getTime(), latest)) continue;
 
       this.fetching.add(inst.id);
       this.emit();
       changed = true;
       try {
-        const price: FeedPrice = await fetchLinkPrice(settings.relayUrl, settings.feedTemplate, inst.priceLink.fundId, this.fetchFn);
-        const point = linkPricePoint(points, inst.id, price, now.toISOString(), today);
+        const code = inst.priceLink.fundId;
+        if (!results.has(code)) results.set(code, fetchLinkPrice(settings.relayUrl, settings.feedTemplate, code, this.fetchFn));
+        const price: FeedPrice = await results.get(code)!;
+        const point = linkPricePoint(points, inst.id, price, now.toISOString(), today, inst.priceLink.since);
         if (point) {
           await priceRepo.putMany([point]);
           saved++;

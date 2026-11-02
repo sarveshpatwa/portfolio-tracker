@@ -61,7 +61,7 @@ export interface Instrument {
    * Manual assets only: fetch the daily price from the fund's Vanguard page
    * data (see pricing/priceLink.ts). Typed prices keep working alongside it.
    */
-  priceLink?: { url: string; fundId: string };
+  priceLink?: { url: string; fundId: string; since?: string };
   createdAt: string;
   updatedAt: string;
 }
