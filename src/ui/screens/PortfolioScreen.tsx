@@ -77,9 +77,9 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
       </div>
 
       <div className="button-pair">
-        <button className="btn btn-primary" disabled title="Arrives with the contributions step">
-          Add money <span className="soon">soon</span>
-        </button>
+        <a className="btn btn-primary btn-link" href={href.money(portfolio.id)}>
+          Add money
+        </a>
         <a className="btn btn-secondary btn-link" href={href.addAsset(portfolio.id)}>
           Add asset
         </a>
@@ -117,6 +117,19 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
           </ul>
         )}
       </section>
+
+      <nav className="card nav-list" aria-label="Portfolio sections">
+        <a href={href.money(portfolio.id)}>
+          <span>Money &amp; allocation</span>
+          <span aria-hidden="true">›</span>
+        </a>
+        <a href={href.ledger(portfolio.id)}>
+          <span>
+            Ledger <span className="muted small">· {detail.data.ledgerCount} {detail.data.ledgerCount === 1 ? 'entry' : 'entries'}</span>
+          </span>
+          <span aria-hidden="true">›</span>
+        </a>
+      </nav>
 
       <Dialog
         open={modal.kind === 'price'}

@@ -18,15 +18,23 @@ import type { Instrument, Portfolio, PortfolioAsset, PricePoint, Transaction } f
 import { portfolioRepo } from '../data/repositories/portfolioRepo';
 import { assetRepo, priceRepo, transactionRepo } from '../data/repositories/assetRepo';
 import { S } from '../data/db/schema';
+import { contributionRepo } from '../data/repositories/contributionRepo';
+import { nextScheduledDate } from '../domain/contributions/schedule';
+import { FREQUENCIES } from '../domain/contributions/forms';
+import { formatUsd } from '../domain/money/format';
+
+const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 /** Stores whose changes should refresh portfolio screens. */
-export const PORTFOLIO_STORES = [S.portfolios, S.portfolioAssets, S.instruments, S.prices, S.transactions] as const;
+export const PORTFOLIO_STORES = [S.portfolios, S.portfolioAssets, S.instruments, S.prices, S.transactions, S.contributionRules] as const;
 
 export interface PortfolioSummary {
   portfolio: Portfolio;
   assetCount: number;
   valuation: PortfolioValue;
   pricesDue: number;
+  /** e.g. "$500 monthly · next Nov 6" for active recurring rules. */
+  recurring: string[];
 }
 
 export interface AssetRow {
@@ -49,12 +57,13 @@ export interface PortfolioDetail {
 }
 
 export async function loadPortfolioSummaries(today: IsoDate = todayLocal()): Promise<PortfolioSummary[]> {
-  const [portfolios, links, instruments, txs, prices] = await Promise.all([
+  const [portfolios, links, instruments, txs, prices, rules] = await Promise.all([
     portfolioRepo.list(),
     assetRepo.listAllLinks(),
     assetRepo.listInstruments(),
     transactionRepo.listAll(),
     priceRepo.listAll(),
+    contributionRepo.allRules(),
   ]);
   const instrumentsById = new Map(instruments.map((i) => [i.id, i]));
   return portfolios.map((p) => {
@@ -65,6 +74,13 @@ export async function loadPortfolioSummaries(today: IsoDate = todayLocal()): Pro
       assetCount: own.length,
       valuation: detail.valuation,
       pricesDue: detail.rows.filter((r) => r.manualStatus?.updateDue).length,
+      recurring: rules
+        .filter((r) => r.portfolioId === p.id && !r.paused)
+        .map((r) => {
+          const next = nextScheduledDate(r, today);
+          const label = FREQUENCIES.find((f) => f.value === r.frequency)?.label.toLowerCase() ?? r.frequency;
+          return `${formatUsd(r.amount)} ${label}${next ? ` · next ${shortDate.format(new Date(`${next}T00:00:00Z`))}` : ''}`;
+        }),
     };
   });
 }

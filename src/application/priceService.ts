@@ -65,6 +65,7 @@ class PriceService {
     symbols: 0,
   };
   private listeners = new Set<Listener>();
+  private afterTickHooks: (() => unknown)[] = [];
   private busy: Promise<void> | null = null;
   private timer: ReturnType<typeof setInterval> | undefined;
   private searchCache = new Map<string, SymbolMatch[]>();
@@ -95,11 +96,23 @@ class PriceService {
     kick();
   }
 
+  /** Runs after every tick, even when prices couldn't refresh (e.g. recurring contributions). */
+  onAfterTick(hook: () => unknown): void {
+    this.afterTickHooks.push(hook);
+  }
+
   /** Called by settings/asset changes so status and schedule update immediately. */
   async tick(opts: { forceQuotes?: boolean } = {}): Promise<void> {
     if (this.busy) return this.busy;
-    this.busy = this.run(opts).finally(() => {
+    this.busy = this.run(opts).finally(async () => {
       this.busy = null;
+      for (const hook of this.afterTickHooks) {
+        try {
+          await hook();
+        } catch (err) {
+          console.warn('After-tick task failed', err);
+        }
+      }
     });
     return this.busy;
   }

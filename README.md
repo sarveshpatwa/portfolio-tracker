@@ -213,6 +213,25 @@ If prices never load and Settings says the browser blocked the request, Twelve D
 refusing calls from web pages. The **Advanced → API address** field lets you point the
 app at a small free proxy (e.g. a Cloudflare Worker) instead — ask and it can be added.
 
+## Simulated contributions (Money & allocation)
+
+Open a portfolio → **Add money**.
+
+1. **Target allocation** — percentages per asset; they must total 100%. Saving creates a new
+   *version* that applies from today; past contributions keep the version they used.
+2. **How to buy** — fractional shares (6 decimals, sub-cent leftover stays as cash) or whole
+   shares (remainder stays as cash; optional top-up of assets still below target).
+3. **One-time** — an amount and a date. Today = current prices; a past date = that day's
+   closing prices (manual assets: the last price you entered by then). You can also invest
+   cash already in the portfolio.
+4. **Recurring** — amount, how often, start date (a past start back-fills every missed
+   contribution). Each date trades at that day's **closing price**, after the close;
+   weekends/holidays move to the next trading day. Dates missed while the app was closed are
+   caught up the next time it opens. Pausing skips the paused period.
+
+Using both devices: each scheduled buy gets a fixed id (rule + date), so if the laptop and
+the iPhone both run it, merging backups keeps one copy.
+
 ## Data and privacy
 
 - All data is stored in this browser's IndexedDB, on this device only. Nothing
@@ -236,7 +255,7 @@ app at a small free proxy (e.g. a Cloudflare Worker) instead — ask and it can 
 | 3 | Backup & restore with **merge** (use the laptop and iPhone side by side), delete all data | ✅ |
 | 4 | Free HTTPS hosting (GitHub Pages), offline mode, install on iPhone | ✅ |
 | 5 | Market data: ticker search, live prices during US market hours, daily history, credit limiter, Settings (API key) | ✅ |
-| 6 | Money & allocation: versioned targets, one-time and recurring contributions, catch-up, ledger screen | |
+| 6 | Money & allocation: versioned targets, buy rules, one-time and recurring contributions (with back-fill and catch-up), ledger + CSV | ✅ |
 | 7 | Dashboard: performance chart (1D–All), projection | |
 | 8 | Signals & risk profile | |
 | 9 | Compare: equal-money backtest, TWR view, Sharpe, drawdown; Track a switch | |

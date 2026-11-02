@@ -5,6 +5,8 @@ import { PortfolioScreen } from '../ui/screens/PortfolioScreen';
 import { AddAssetScreen } from '../ui/screens/AddAssetScreen';
 import { PlaceholderScreen } from '../ui/screens/PlaceholderScreen';
 import { SettingsScreen } from '../ui/screens/SettingsScreen';
+import { MoneyScreen } from '../ui/screens/MoneyScreen';
+import { LedgerScreen } from '../ui/screens/LedgerScreen';
 import { parseRoute, type Route } from './routes';
 
 function tabFor(route: Route): Tab {
@@ -30,6 +32,8 @@ export function App() {
         {route.name === 'portfolios' && <PortfoliosScreen />}
         {route.name === 'portfolio' && <PortfolioScreen key={route.id} portfolioId={route.id} />}
         {route.name === 'add-asset' && <AddAssetScreen key={route.id} portfolioId={route.id} />}
+        {route.name === 'money' && <MoneyScreen key={route.id} portfolioId={route.id} />}
+        {route.name === 'ledger' && <LedgerScreen key={route.id} portfolioId={route.id} />}
         {route.name === 'compare' && (
           <PlaceholderScreen
             title="Compare"

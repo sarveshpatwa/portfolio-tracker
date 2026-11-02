@@ -182,3 +182,20 @@ describe('parseBackup', () => {
     expect(parsed.data.portfolioAssets).toEqual([]);
   });
 });
+
+describe('recurring contributions on two devices', () => {
+  it('merging two devices that both ran the same scheduled buy keeps one copy', () => {
+    // Same rule + same date → the same deterministic ids on both devices.
+    const run = (seq: number): Transaction[] => [
+      { id: 'rc:R:2026-11-06:deposit', seq, portfolioId: 'P', type: 'DEPOSIT', date: '2026-11-06', amount: '500', contributionId: 'rc:R:2026-11-06', createdAt: T(1) },
+      { id: 'rc:R:2026-11-06:buy:X', seq: seq + 1, portfolioId: 'P', type: 'BUY', instrumentId: 'X', quantity: '500', price: '1', date: '2026-11-06', amount: '500', contributionId: 'rc:R:2026-11-06', createdAt: T(2) },
+    ];
+    const laptop = base();
+    laptop.transactions.push(...run(10));
+    const phone = base();
+    phone.transactions.push(...run(99));
+    const plan = mergeSnapshots(laptop, phone);
+    expect(plan.noChanges).toBe(true);
+    expect(plan.result.transactions.filter((t) => t.contributionId === 'rc:R:2026-11-06')).toHaveLength(2);
+  });
+});

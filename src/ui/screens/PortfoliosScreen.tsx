@@ -65,7 +65,7 @@ export function PortfoliosScreen() {
       )}
       {portfolios.status === 'ready' && portfolios.data.length > 0 && (
         <ul className="list" aria-label="Your portfolios">
-          {portfolios.data.map(({ portfolio: p, valuation, assetCount, pricesDue }) => (
+          {portfolios.data.map(({ portfolio: p, valuation, assetCount, pricesDue, recurring }) => (
             <li key={p.id} className="card portfolio-card">
               <div className="row-between">
                 <h2 className="card-title">
@@ -97,8 +97,8 @@ export function PortfoliosScreen() {
                 )}
               </div>
               <span className="muted small">
-                {assetCount === 0 ? 'No assets yet' : `${assetCount} ${assetCount === 1 ? 'asset' : 'assets'}`} · created{' '}
-                {createdFmt.format(new Date(p.createdAt))}
+                {assetCount === 0 ? 'No assets yet' : `${assetCount} ${assetCount === 1 ? 'asset' : 'assets'}`}
+                {recurring.length > 0 ? ` · ${recurring.join(' · ')}` : ` · created ${createdFmt.format(new Date(p.createdAt))}`}
               </span>
             </li>
           ))}
