@@ -18,6 +18,7 @@ import type { Deletion, Instrument, PortfolioAsset, PricePoint, Transaction } fr
 import { getDb, S } from '../db/schema';
 import { newId, nextSeq } from '../ids';
 import { ValidationError } from './errors';
+import type { PriceLink } from '../../domain/pricing/priceLink';
 
 export const assetRepo = {
   async listForPortfolio(portfolioId: string): Promise<PortfolioAsset[]> {
@@ -43,6 +44,7 @@ export const assetRepo = {
       assetClass: v.assetClass,
       priceSource: 'manual',
       currency: 'USD',
+      ...(v.priceLink ? { priceLink: v.priceLink } : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -54,7 +56,9 @@ export const assetRepo = {
       addedAt: now,
       updatedAt: now,
     };
-    const prices: PricePoint[] = [{ instrumentId: instrument.id, date: v.priceDate, close: v.price.toString(), source: 'manual', updatedAt: now }];
+    const prices: PricePoint[] = [
+      { instrumentId: instrument.id, date: v.priceDate, close: v.price.toString(), source: v.priceFetched ? 'link' : 'manual', updatedAt: now },
+    ];
     const txs: Transaction[] = [];
     if (v.starting) {
       const { quantity, costPerUnit, date } = v.starting;
@@ -178,6 +182,17 @@ export const assetRepo = {
       for (const t of records.transactions) put(S.transactions, t);
       put(S.instruments, { ...instrument, updatedAt: new Date().toISOString() });
     });
+  },
+
+  /** Adds, changes or removes (undefined) a manual asset's price link. */
+  async setPriceLink(instrumentId: string, link: PriceLink | undefined): Promise<void> {
+    const db = await getDb();
+    const instrument = await db.get<Instrument>(S.instruments, instrumentId);
+    if (!instrument) throw new ValidationError('That asset no longer exists.');
+    if (instrument.priceSource !== 'manual') throw new ValidationError('Only manual-price assets can use a price link.');
+    const { priceLink: _old, ...rest } = instrument;
+    const updated: Instrument = { ...rest, ...(link ? { priceLink: link } : {}), updatedAt: new Date().toISOString() };
+    await db.write([S.instruments], ({ put }) => put(S.instruments, updated));
   },
 
   async setReminder(link: PortfolioAsset, reminderDays: number | undefined): Promise<void> {

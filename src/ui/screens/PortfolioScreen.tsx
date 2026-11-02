@@ -19,6 +19,7 @@ import { marketPriceLabel } from '../components/priceLabels';
 import { Dialog } from '../components/Dialog';
 import { HoldingUpdateForm } from '../components/HoldingUpdateForm';
 import { assetRepo } from '../../data/repositories/assetRepo';
+import { LinkStatusLine, PriceLinkEditor } from '../components/PriceLink';
 
 /** Bar colours for allocation slices, largest first. They step in lightness so they stay distinguishable without hue. */
 const SLICE_COLORS = ['#1F5FBF', '#5585CF', '#8BAADF', '#B9CDEB', '#DCE6F5'];
@@ -151,7 +152,10 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
       </Dialog>
 
       <Dialog open={modal.kind === 'asset'} title={modal.kind === 'asset' ? modal.row.instrument.name : ''} onClose={close}>
-        {modal.kind === 'asset' && <AssetActions row={modal.row} onDone={close} />}
+        {modal.kind === 'asset' && (
+          // Use the live row so edits made inside the dialog (e.g. a price link) show at once.
+          <AssetActions row={detail.data.rows.find((r) => r.link.id === modal.row.link.id) ?? modal.row} onDone={close} />
+        )}
       </Dialog>
     </div>
   );
@@ -268,7 +272,9 @@ function HoldingRow({ row, onUpdatePrice, onMore }: { row: AssetRow; onUpdatePri
         {holding && <Gain className="strong" amount={holding.gain} pct={holding.gainPct} />}
       </div>
       <div className="row-between wrap">
-        {manual ? (
+        {manual && instrument.priceLink ? (
+          <LinkStatusLine instrument={instrument} price={price} />
+        ) : manual ? (
           <span className={`small ${manualStatus?.updateDue ? 'warn-text' : 'muted'}`}>
             Manual price · updated {price ? describeAge(manualStatus?.ageDays ?? 0) : 'never'}
             {manualStatus?.updateDue && ' · update due'}
@@ -361,6 +367,7 @@ function AssetActions({ row, onDone }: { row: AssetRow; onDone: () => void }) {
           </select>
         </label>
       )}
+      {row.instrument.priceSource === 'manual' && <PriceLinkEditor instrument={row.instrument} />}
       <button
         className="btn btn-danger-outline"
         disabled={busy}

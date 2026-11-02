@@ -4,6 +4,7 @@ import { App } from './app/App';
 import { registerServiceWorker, requestPersistentStorage } from './app/pwa';
 import { priceService } from './application/priceService';
 import { contributionService } from './application/contributionService';
+import { linkPriceService } from './application/linkPriceService';
 import './ui/styles.css';
 
 const root = document.getElementById('root');
@@ -16,7 +17,9 @@ createRoot(root).render(
 );
 
 registerServiceWorker();
-// Recurring contributions run after each price check (they need that day's closing prices).
+// After each price check: fund prices from price links first, then recurring
+// contributions (which need that day's prices).
+priceService.onAfterTick(() => linkPriceService.runDue());
 priceService.onAfterTick(() => contributionService.runDue());
 priceService.start();
 void requestPersistentStorage();

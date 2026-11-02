@@ -5,8 +5,10 @@
  *
  *  1. New records (id not on this device) are added.
  *  2. Editable records (portfolios, assets, portfolio assets, recurring rules,
- *     switches, manual prices) present on both sides: the one with the later
+ *     switches, manual/link prices) present on both sides: the one with the later
  *     `updatedAt` wins ("last edit wins"). Ties keep this device's copy.
+ *     Exception: for a price on the same day, a typed (manual) price beats a
+ *     fetched (price-link) one.
  *  3. Ledger entries and allocation-plan versions are never edited, only
  *     added, so they just merge by id.
  *  4. Deletions (tombstones) from both sides are combined. A tombstone removes
@@ -57,6 +59,18 @@ function stamp(r: AnyRecord): string {
   return String(r.updatedAt ?? r.createdAt ?? r.addedAt ?? '');
 }
 
+/**
+ * Newer edit wins — except for prices on the same day, where a price typed by
+ * hand always beats one fetched from a price link (on either device).
+ */
+function incomingWins(store: StoreKey, incoming: AnyRecord, mine: AnyRecord): boolean {
+  if (store === 'prices' && incoming.source !== mine.source) {
+    if (mine.source === 'manual' && incoming.source === 'link') return false;
+    if (incoming.source === 'manual' && mine.source === 'link') return true;
+  }
+  return stamp(incoming) > stamp(mine);
+}
+
 export function mergeSnapshots(local: Snapshot, incoming: Snapshot): MergePlan {
   const merged = new Map<StoreKey, Map<string, AnyRecord>>();
   const upsertKeys = new Map<StoreKey, Set<string>>();
@@ -78,7 +92,7 @@ export function mergeSnapshots(local: Snapshot, incoming: Snapshot): MergePlan {
         map.set(key, r);
         upsertKeys.get(store)!.add(key);
         changes[store].added++;
-      } else if (!ADD_ONLY.has(store) && stamp(r) > stamp(mine)) {
+      } else if (!ADD_ONLY.has(store) && incomingWins(store, r, mine)) {
         map.set(key, r);
         upsertKeys.get(store)!.add(key);
         changes[store].updated++;

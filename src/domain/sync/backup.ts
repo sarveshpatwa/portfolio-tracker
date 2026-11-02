@@ -132,7 +132,7 @@ function checkRecord(store: StoreKey, r: unknown): string | null {
   switch (store) {
     case 'prices':
       if (!str('instrumentId') || !date('date') || !dec('close')) return 'bad price';
-      if (r.source !== 'market' && r.source !== 'manual') return 'bad price source';
+      if (r.source !== 'market' && r.source !== 'manual' && r.source !== 'link') return 'bad price source';
       return null;
     case 'deletions':
       return str('id') && str('store') && str('deletedAt') ? null : 'bad deletion';

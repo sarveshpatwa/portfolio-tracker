@@ -31,11 +31,13 @@ export const backupRepo = {
   /**
    * Downloaded market prices are left out: they can be large (years of daily
    * closes per ticker) and each device re-downloads them from the provider.
-   * Manual prices are included — they exist only because you typed them.
+   * Manual prices are included — they exist only because you typed them —
+   * and so are price-link prices: Vanguard's feed only gives today's price, so
+   * past days can't be downloaded again.
    */
   async createBackup(): Promise<BackupFile> {
     const snap = await this.snapshot();
-    return makeBackup({ ...snap, prices: snap.prices.filter((p) => p.source === 'manual') }, DB_VERSION);
+    return makeBackup({ ...snap, prices: snap.prices.filter((p) => p.source !== 'market') }, DB_VERSION);
   },
 
   /** Call after the file was actually shared or downloaded. */

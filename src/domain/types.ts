@@ -57,6 +57,11 @@ export interface Instrument {
   assetClass: AssetClass;
   priceSource: PriceSource;
   currency: 'USD';
+  /**
+   * Manual assets only: fetch the daily price from the fund's Vanguard page
+   * data (see pricing/priceLink.ts). Typed prices keep working alongside it.
+   */
+  priceLink?: { url: string; fundId: string };
   createdAt: string;
   updatedAt: string;
 }
@@ -179,12 +184,12 @@ export interface PortfolioSwitch {
   updatedAt?: string;
 }
 
-/** A daily close (market) or a user-entered price (manual). */
+/** A daily close (market), a user-entered price (manual) or a price fetched from a fund's price link (link). */
 export interface PricePoint {
   instrumentId: Id;
   date: IsoDate;
   close: DecimalString;
-  source: 'market' | 'manual';
+  source: 'market' | 'manual' | 'link';
   /** When this point was written. Lets a backup merge keep the newer of two edits. */
   updatedAt?: string;
   /** Market prices only: a live price during the session, replaced by the final close later. */

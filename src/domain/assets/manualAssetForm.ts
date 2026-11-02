@@ -17,6 +17,7 @@
 import { Dec } from '../money/decimal';
 import { isIsoDate, type IsoDate } from '../calendar/dates';
 import type { AssetClass } from '../types';
+import { parsePriceLink, type PriceLink } from '../pricing/priceLink';
 
 export interface ManualAssetFormInput {
   name: string;
@@ -27,6 +28,8 @@ export interface ManualAssetFormInput {
   startQuantity: string;
   startCost: string;
   startDate: string;
+  /** Optional Vanguard page link or fund number. */
+  priceLink?: string;
 }
 
 export interface ManualAssetValues {
@@ -36,6 +39,10 @@ export interface ManualAssetValues {
   priceDate: IsoDate;
   reminderDays?: number;
   starting?: { quantity: Dec; costPerUnit: Dec; date: IsoDate };
+  /** Optional: fetch daily prices from the fund's Vanguard page data. */
+  priceLink?: PriceLink;
+  /** The price was fetched from the price link (stored as a 'link' price, not a typed one). */
+  priceFetched?: boolean;
 }
 
 export type FieldErrors = Partial<Record<keyof ManualAssetFormInput, string>>;
@@ -88,10 +95,25 @@ export function parseManualAssetForm(
     if (quantity && costPerUnit && !startDateError && isIsoDate(date)) starting = { quantity, costPerUnit, date };
   }
 
+  let priceLink: PriceLink | undefined;
+  if (input.priceLink?.trim()) {
+    const r = parsePriceLink(input.priceLink);
+    if (r.ok) priceLink = r.link;
+    else errors.priceLink = r.error;
+  }
+
   if (Object.keys(errors).length > 0 || !price) return { ok: false, errors };
   return {
     ok: true,
-    value: { name, assetClass: input.assetClass, price, priceDate, ...(reminderDays ? { reminderDays } : {}), ...(starting ? { starting } : {}) },
+    value: {
+      name,
+      assetClass: input.assetClass,
+      price,
+      priceDate,
+      ...(reminderDays ? { reminderDays } : {}),
+      ...(starting ? { starting } : {}),
+      ...(priceLink ? { priceLink } : {}),
+    },
   };
 }
 

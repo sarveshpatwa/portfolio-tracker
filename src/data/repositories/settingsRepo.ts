@@ -1,6 +1,7 @@
 /**
  * Device settings (never included in backups): the market-data API key,
- * refresh preference, credit usage and last refresh time.
+ * refresh preference, credit usage and last refresh time, and the price-link
+ * relay address.
  *
  * Security note: a browser-only app can't hide a key from someone who has
  * your unlocked device. The key is stored only in this browser's storage and
@@ -17,7 +18,13 @@ const K = {
   refreshMinutes: 'refreshMinutes',
   usage: 'creditUsage',
   lastQuoteAt: 'lastQuoteAt',
+  relayUrl: 'linkRelayUrl',
+  feedTemplate: 'linkFeedTemplate',
+  linkAttempts: 'linkAttempts',
 } as const;
+
+/** Last fetch attempt per price-linked asset (device-local; drives the 2-hour retry). */
+export type LinkAttempts = Record<string, { at: number; error?: string }>;
 
 export const DEFAULT_REFRESH_MINUTES = 10;
 export const REFRESH_CHOICES = [5, 10, 15, 30] as const;
@@ -57,4 +64,15 @@ export const settingsRepo = {
   setUsage: (u: CreditUsage) => set(K.usage, u),
   lastQuoteAt: () => get<number>(K.lastQuoteAt),
   setLastQuoteAt: (ms: number) => set(K.lastQuoteAt, ms),
+
+  async links(): Promise<{ relayUrl: string; feedTemplate: string }> {
+    const [relayUrl, feedTemplate] = await Promise.all([get<string>(K.relayUrl), get<string>(K.feedTemplate)]);
+    return { relayUrl: relayUrl ?? '', feedTemplate: feedTemplate ?? '' };
+  },
+  setRelayUrl: (url: string) => set(K.relayUrl, url.trim().replace(/\/+$/, '')),
+  setFeedTemplate: (t: string) => set(K.feedTemplate, t.trim()),
+  async linkAttempts(): Promise<LinkAttempts> {
+    return (await get<LinkAttempts>(K.linkAttempts)) ?? {};
+  },
+  setLinkAttempts: (a: LinkAttempts) => set(K.linkAttempts, a),
 };

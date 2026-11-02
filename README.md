@@ -152,7 +152,7 @@ src/
     money/        Dec fixed-point decimal + formatting
     calendar/     ISO dates + US market trading calendar (holidays, next trading day)
     portfolio/    Ledger replay (positions, cost basis, cash), valuation, breakdown by class
-    pricing/      Price on a date, manual-price freshness and reminders
+    pricing/      Price on a date, manual-price freshness and reminders, price links (Vanguard)
     assets/       Add asset / Update holding validation, delete-asset plan
     sync/         Backup file format + merge rules (two-device use)
     market/       US market hours (DST-safe), free-plan budget + credit limiter, history gaps
@@ -164,6 +164,7 @@ src/
     repositories/ Read/write functions per entity (+ device settings)
     providers/    MarketDataProvider interface + Twelve Data adapter (swap here)
 public/           manifest, service worker, icons
+relay/            Cloudflare Worker for price links (deployed separately, not part of the app build)
 tests/            Unit tests, mirroring src/domain
 ```
 
@@ -213,6 +214,55 @@ If prices never load and Settings says the browser blocked the request, Twelve D
 refusing calls from web pages. The **Advanced → API address** field lets you point the
 app at a small free proxy (e.g. a Cloudflare Worker) instead — ask and it can be added.
 
+## Price links (Vanguard funds without a ticker)
+
+Some Vanguard funds (e.g. plan or trust funds in a 401k) have no ticker, but Vanguard's
+fund page shows their price every day. A manual asset can carry that page's link, and the
+app then fetches the closing price daily. Typing prices still works: **a typed price always
+wins on its date**.
+
+Browsers don't let a web app read Vanguard's data directly, so the app asks a tiny relay
+that you own: a free **Cloudflare Worker** (`relay/worker.js`, ~80 lines). It only fetches
+`vanguard.com` addresses, only answers your app's address, stores nothing, and sees fund
+numbers — never your holdings. The free plan allows 100,000 requests a day; the app uses a
+few per fund per day.
+
+### One-time relay setup (about 10 minutes)
+
+1. Sign up (free, no card) at <https://dash.cloudflare.com/sign-up> and verify your email.
+2. In the dashboard: **Workers & Pages** (may be under **Compute**) → **Create** →
+   **Create Worker** (or *Start with Hello World*) → name it `vanguard-relay` → **Deploy**.
+3. Click **Edit code**. Delete everything in the editor, paste the whole content of
+   `relay/worker.js` from this project, and click **Deploy**.
+   - If you open the app from an address other than `https://sarveshpatwa.github.io`,
+     add it to `ALLOWED_ORIGINS` at the top of the file first.
+4. Copy the worker's address shown at the top, e.g.
+   `https://vanguard-relay.yourname.workers.dev`.
+5. In the app: **Settings → Price links** → paste it into **Relay address** → **Save and
+   test**. It should say *"Relay works — fund 0066 is $1.0000 (…)"*.
+   Do this on the laptop **and** the iPhone (device settings aren't in backups).
+
+### Using it
+
+- **New asset:** Add asset → Manual price → paste the fund's Vanguard page link (or just its
+  fund number) under *Daily price from Vanguard*. Leave the price empty to start from
+  Vanguard's latest price.
+- **Existing asset:** tap **···** on the holding → paste the link → **Save link**. The same
+  place has **Fetch now**, **Open Vanguard page** and removing the link.
+- Prices are fetched when the app opens and while it's open, once Vanguard has published
+  the day's price (US evening; India early morning). If a fetch fails, the holding says so
+  and keeps the last price.
+- Fetched prices **are** included in backups (Vanguard's feed only gives the latest price,
+  so past days can't be downloaded again).
+
+### If it stops working
+
+Vanguard's price feed isn't an official public service and can change. If Settings →
+*Save and test* says the data address may have changed: open the fund page in Edge →
+**F12 → Network → Fetch/XHR** → reload → filter `json` → find the request whose Preview
+shows the price → copy its URL, replace the fund number with `{id}`, and paste it into
+**Settings → Price links → Advanced → Vanguard data address**.
+
 ## Simulated contributions (Money & allocation)
 
 Open a portfolio → **Add money**.
@@ -256,6 +306,7 @@ the iPhone both run it, merging backups keeps one copy.
 | 4 | Free HTTPS hosting (GitHub Pages), offline mode, install on iPhone | ✅ |
 | 5 | Market data: ticker search, live prices during US market hours, daily history, credit limiter, Settings (API key) | ✅ |
 | 6 | Money & allocation: versioned targets, buy rules, one-time and recurring contributions (with back-fill and catch-up), ledger + CSV | ✅ |
+| 6.5 | Price links: daily prices for Vanguard funds without a ticker, via your free Cloudflare relay | ✅ |
 | 7 | Dashboard: performance chart (1D–All), projection | |
 | 8 | Signals & risk profile | |
 | 9 | Compare: equal-money backtest, TWR view, Sharpe, drawdown; Track a switch | |

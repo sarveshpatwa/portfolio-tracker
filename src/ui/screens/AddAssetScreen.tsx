@@ -14,6 +14,8 @@ import { href, navigate } from '../../app/routes';
 import type { Portfolio } from '../../domain/types';
 import type { AssetRow } from '../../application/portfolioQueries';
 import { MarketAssetForm } from '../components/MarketAssetForm';
+import { linkPriceService } from '../../application/linkPriceService';
+import { parsePriceLink } from '../../domain/pricing/priceLink';
 
 const CLASS_OPTIONS: { value: AssetClass; label: string }[] = [
   { value: 'fund', label: 'Private fund / mutual fund' },
@@ -90,6 +92,7 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
     startQuantity: '',
     startCost: '',
     startDate: '',
+    priceLink: '',
   });
   const [errors, setErrors] = useState<FieldErrors & { form?: string }>({});
   const [busy, setBusy] = useState(false);
@@ -101,7 +104,27 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const parsed = parseManualAssetForm(form, today, rows.map((r) => r.instrument.name));
+    // Price left empty + a price link: fetch the first price from Vanguard.
+    let input = form;
+    let fetched = false;
+    const link = form.priceLink?.trim() ? parsePriceLink(form.priceLink) : null;
+    if (!form.price.trim() && link?.ok) {
+      setBusy(true);
+      try {
+        const { relayUrl, feedTemplate } = await settingsRepo.links();
+        if (!relayUrl) throw new Error('Set up the price relay first (Settings → Price links), or type the price.');
+        const p = await linkPriceService.test(relayUrl, feedTemplate, link.link.fundId);
+        input = { ...form, price: p.price.toString(), priceDate: p.date };
+        fetched = true;
+        setForm(input);
+      } catch (err) {
+        setErrors({ price: `Couldn’t fetch the price: ${err instanceof Error ? err.message : 'unknown error'}` });
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
+    const parsed = parseManualAssetForm(input, today, rows.map((r) => r.instrument.name));
     if (!parsed.ok) {
       setErrors(parsed.errors);
       // Move focus to the first invalid field so screen-reader and keyboard users land on it.
@@ -110,7 +133,8 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
     }
     setBusy(true);
     try {
-      await assetRepo.addManualAsset(portfolio.id, parsed.value);
+      const added = await assetRepo.addManualAsset(portfolio.id, { ...parsed.value, ...(fetched ? { priceFetched: true } : {}) });
+      if (parsed.value.priceLink && !fetched) void linkPriceService.runDue({ force: true, only: added.instrumentId });
       navigate(href.portfolio(portfolio.id));
     } catch (err) {
       setErrors({ form: err instanceof Error ? err.message : 'Saving failed.' });
@@ -160,7 +184,7 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
                 className="input"
                 inputMode="decimal"
                 value={form.price}
-                placeholder="0.00"
+                placeholder={form.priceLink?.trim() ? 'empty = from Vanguard' : '0.00'}
                 onChange={(e) => set('price')(e.target.value)}
               />
             )}
@@ -185,6 +209,30 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
               <option value="7">Every week</option>
               <option value="">Never</option>
             </select>
+          )}
+        </Field>
+      </section>
+
+      <section className="card stack">
+        <h2 className="section-title">
+          Daily price from Vanguard <span className="muted normal">· optional</span>
+        </h2>
+        <p className="muted small">
+          For Vanguard funds without a ticker: paste the fund’s Vanguard page link and the app fetches its closing price every day
+          (needs the price relay — Settings → Price links). Leave the price above empty to start from Vanguard’s latest price. You
+          can still type prices yourself; a typed price wins on its date.
+        </p>
+        <Field label="Vanguard page link or fund number" error={errors.priceLink}>
+          {(p) => (
+            <input
+              {...p}
+              className="input"
+              inputMode="url"
+              autoComplete="off"
+              value={form.priceLink ?? ''}
+              placeholder="https://investor.vanguard.com/…/overview/0066…"
+              onChange={(e) => set('priceLink')(e.target.value)}
+            />
           )}
         </Field>
       </section>

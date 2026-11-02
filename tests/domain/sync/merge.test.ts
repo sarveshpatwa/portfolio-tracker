@@ -199,3 +199,17 @@ describe('recurring contributions on two devices', () => {
     expect(plan.result.transactions.filter((t) => t.contributionId === 'rc:R:2026-11-06')).toHaveLength(2);
   });
 });
+
+describe('price links in merges', () => {
+  const price = (source: 'manual' | 'link', close: string, updatedAt: string): PricePoint => ({ instrumentId: 'F', date: '2026-10-30', close, source, updatedAt });
+  it('keeps a typed price over a newer fetched one, either way round', () => {
+    const typed = snap({ prices: [price('manual', '1.01', '2026-10-30T10:00:00Z')] });
+    const fetched = snap({ prices: [price('link', '1.02', '2026-10-31T10:00:00Z')] });
+    expect(mergeSnapshots(typed, fetched).result.prices[0]?.close).toBe('1.01');
+    expect(mergeSnapshots(fetched, typed).result.prices[0]?.close).toBe('1.01');
+  });
+  it('accepts link prices in backup files', () => {
+    const file = makeBackup(snap({ prices: [price('link', '1.02', '2026-10-31T10:00:00Z')] }), 2);
+    expect(parseBackup(JSON.parse(JSON.stringify(file)), 2).data.prices[0]?.source).toBe('link');
+  });
+});
