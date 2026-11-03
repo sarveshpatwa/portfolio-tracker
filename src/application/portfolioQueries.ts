@@ -137,7 +137,7 @@ export async function previewAssetDeletion(link: PortfolioAsset, today: IsoDate 
   };
 }
 
-function compute(
+export function compute(
   portfolio: Portfolio,
   links: readonly PortfolioAsset[],
   instrumentsById: ReadonlyMap<string, Instrument>,
@@ -180,7 +180,7 @@ function compute(
  * A manual price typed with a later local date (India is ahead) is moved onto
  * that end date so it still counts, matching the dashboard total.
  */
-function historyFor(txs: readonly Transaction[], prices: readonly PricePoint[], localToday: IsoDate): DayValue[] {
+export function historyFor(txs: readonly Transaction[], prices: readonly PricePoint[], localToday: IsoDate): DayValue[] {
   const ny = todayInNewYork();
   const end = ny < localToday ? ny : localToday;
   const pts = prices.filter((p) => p.date <= localToday).map((p) => (p.date > end ? { ...p, date: end } : p));

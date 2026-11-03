@@ -5,6 +5,7 @@ import { registerServiceWorker, requestPersistentStorage } from './app/pwa';
 import { priceService } from './application/priceService';
 import { contributionService } from './application/contributionService';
 import { linkPriceService } from './application/linkPriceService';
+import { switchService } from './application/switchService';
 import './ui/styles.css';
 
 const root = document.getElementById('root');
@@ -21,5 +22,7 @@ registerServiceWorker();
 // contributions (which need that day's prices).
 priceService.onAfterTick(() => linkPriceService.runDue());
 priceService.onAfterTick(() => contributionService.runDue());
+// Then "mirror new money" for tracked switches (after recurring buys exist).
+priceService.onAfterTick(() => switchService.runMirrors());
 priceService.start();
 void requestPersistentStorage();

@@ -3,14 +3,16 @@ import { TabBar, type Tab } from '../ui/components/TabBar';
 import { PortfoliosScreen } from '../ui/screens/PortfoliosScreen';
 import { PortfolioScreen } from '../ui/screens/PortfolioScreen';
 import { AddAssetScreen } from '../ui/screens/AddAssetScreen';
-import { PlaceholderScreen } from '../ui/screens/PlaceholderScreen';
+import { CompareScreen } from '../ui/screens/CompareScreen';
+import { SwitchScreen } from '../ui/screens/SwitchScreen';
 import { SettingsScreen } from '../ui/screens/SettingsScreen';
 import { MoneyScreen } from '../ui/screens/MoneyScreen';
 import { LedgerScreen } from '../ui/screens/LedgerScreen';
 import { parseRoute, type Route } from './routes';
 
 function tabFor(route: Route): Tab {
-  if (route.name === 'compare' || route.name === 'settings') return route.name;
+  if (route.name === 'compare' || route.name === 'switch-new') return 'compare';
+  if (route.name === 'settings') return 'settings';
   return 'portfolios';
 }
 
@@ -34,12 +36,8 @@ export function App() {
         {route.name === 'add-asset' && <AddAssetScreen key={route.id} portfolioId={route.id} />}
         {route.name === 'money' && <MoneyScreen key={route.id} portfolioId={route.id} />}
         {route.name === 'ledger' && <LedgerScreen key={route.id} portfolioId={route.id} />}
-        {route.name === 'compare' && (
-          <PlaceholderScreen
-            title="Compare"
-            body="Ranking portfolios on equal money, and switch checks, arrive once contributions and market prices are in."
-          />
-        )}
+        {route.name === 'compare' && <CompareScreen />}
+        {route.name === 'switch-new' && <SwitchScreen />}
         {route.name === 'settings' && <SettingsScreen />}
       </main>
       <TabBar current={tabFor(route)} />

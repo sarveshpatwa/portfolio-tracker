@@ -78,7 +78,8 @@ export async function loadLedger(portfolioId: string): Promise<{ portfolio: Port
       let g = byContribution.get(t.contributionId);
       if (!g) {
         const recurring = t.contributionId.startsWith('rc:');
-        g = { key: t.contributionId, date: t.date, title: recurring ? 'Recurring contribution' : 'Contribution', entries: [] };
+        const mirrored = t.contributionId.startsWith('mirror:');
+        g = { key: t.contributionId, date: t.date, title: recurring ? 'Recurring contribution' : mirrored ? 'Mirrored from switch' : 'Contribution', entries: [] };
         byContribution.set(t.contributionId, g);
         groups.push(g);
       }

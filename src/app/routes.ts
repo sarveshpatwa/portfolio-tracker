@@ -11,6 +11,7 @@ export type Route =
   | { name: 'money'; id: string }
   | { name: 'ledger'; id: string }
   | { name: 'compare' }
+  | { name: 'switch-new' }
   | { name: 'settings' };
 
 export function parseRoute(hash: string): Route {
@@ -21,6 +22,7 @@ export function parseRoute(hash: string): Route {
     return { name: 'portfolio', id };
   }
   if (first === 'compare') return { name: 'compare' };
+  if (first === 'switch' && id === 'new') return { name: 'switch-new' };
   if (first === 'settings') return { name: 'settings' };
   return { name: 'portfolios' };
 }
@@ -32,6 +34,7 @@ export const href = {
   money: (id: string) => `#/p/${encodeURIComponent(id)}/money`,
   ledger: (id: string) => `#/p/${encodeURIComponent(id)}/ledger`,
   compare: () => '#/compare',
+  switchNew: () => '#/switch/new',
   settings: () => '#/settings',
 };
 

@@ -330,6 +330,37 @@ Hand-priced assets get only the signals that make sense for weekly/bi-weekly pri
 year), largest drop (whole history, contributions removed) and concentration (largest holding).
 Volatility and largest drop need 60 days of history. Formulas: `src/domain/signals/`.
 
+## Compare portfolios
+
+**Compare** tab: *if the same money had gone into each portfolio, which would have done best?*
+
+- **Equal-money backtest (the headline):** the same amount (default $10,000) is put into
+  each portfolio's mix — its holdings today, or its target allocation — on the same start
+  date (3M … Max), held without changes, and ranked by final value. Shown per portfolio:
+  return, yearly return, volatility, largest drop and Sharpe ratio (return per unit of risk,
+  using a 4% risk-free rate).
+- The start moves later if an asset has no price that far back (it says which one). Tick
+  *assume it was the same* to use an asset's first known price for earlier days.
+- **Actual track record:** each portfolio's real ledger over the same period, time-weighted
+  (new money doesn't count as growth).
+- Not included: dividends (unless in the price), fees, taxes, rebalancing.
+
+## Track a switch
+
+Compare → **Track a switch**: pick the switch date, the portfolio you left (old) and the one
+the money went to (new). Set both portfolios and their assets up first.
+
+- For each side, the app uses what's already in its ledger on that date — or, if it has no
+  entries yet, you enter the **units held** on the switch date (prices come from the market
+  close or, for manual assets, what you type).
+- Optional **statement value** per side: more than 1% off is flagged.
+- **Mirror new money** (on by default): every contribution to the new portfolio is copied
+  into the old one on the same date, in the old one's mix — a fair "if I'd stayed".
+- Optional **one-time cost** and **yearly fee** are shown as "after fees" (ledgers unchanged).
+- The **switch check** card shows what staying would be worth now vs the new portfolio,
+  both time-weighted returns, the switch-day values and a chart. Removing the link keeps
+  both portfolios.
+
 ## Data and privacy
 
 - All data is stored in this browser's IndexedDB, on this device only. Nothing
@@ -357,4 +388,4 @@ Volatility and largest drop need 60 days of history. Formulas: `src/domain/signa
 | 6.5 | Price links: daily prices for Vanguard funds without a ticker, via your free Cloudflare relay | ✅ |
 | 7 | Dashboard: performance chart (1D–All, time-weighted return), projection estimate, card trend lines | ✅ |
 | 8 | Signals (decline, off-high, below average, volatility, concentration, alert price) & risk profile | ✅ |
-| 9 | Compare: equal-money backtest, TWR view, Sharpe, drawdown; Track a switch | |
+| 9 | Compare: equal-money backtest (headline), actual time-weighted record, Sharpe, largest drop; Track a switch with statement check, mirrored new money, optional fees | ✅ |
