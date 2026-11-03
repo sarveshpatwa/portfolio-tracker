@@ -1005,3 +1005,14 @@ input[type='date'].input {
 .sparkline path { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
 .proj-table tbody th { white-space: nowrap; }
 .input-narrow { width: 5.5em; min-height: 36px; padding: 4px 8px; }
+
+/* Signals & risk (step 8) */
+.badge-neutral { background: #ecece7; color: var(--text-soft); }
+.badge-link { text-decoration: none; }
+.signal-list, .signal-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.signal-list > li + li { border-top: 1px solid var(--border); padding-top: 10px; }
+.signal-items p { margin: 4px 0 0; }
+.risk-list { margin: 0; display: grid; gap: 12px; }
+.risk-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+.risk-row dt, .risk-row dd { margin: 0; }
+.risk-explain { grid-column: 1 / -1; margin: 0; }

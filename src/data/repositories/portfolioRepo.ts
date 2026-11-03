@@ -5,7 +5,7 @@
  * A tombstone is kept so a backup merge removes it on the other device too.
  */
 
-import type { Deletion, Portfolio } from '../../domain/types';
+import type { SignalSettings, Deletion, Portfolio } from '../../domain/types';
 import { getDb, S } from '../db/schema';
 import { newId } from '../ids';
 import { ValidationError } from './errors';
@@ -59,6 +59,16 @@ export const portfolioRepo = {
     const updated: Portfolio = { ...current, name, updatedAt: new Date().toISOString() };
     await db.write([S.portfolios], ({ put }) => put(S.portfolios, updated));
     return updated;
+  },
+
+  /** Saves this portfolio's signal thresholds (undefined = back to defaults). */
+  async setSignalSettings(id: string, settings: SignalSettings | undefined): Promise<void> {
+    const db = await getDb();
+    const current = await this.get(id);
+    if (!current) throw new ValidationError('That portfolio no longer exists.');
+    const { signalSettings: _old, ...rest } = current;
+    const updated: Portfolio = { ...rest, ...(settings ? { signalSettings: settings } : {}), updatedAt: new Date().toISOString() };
+    await db.write([S.portfolios], ({ put }) => put(S.portfolios, updated));
   },
 
   async remove(id: string): Promise<void> {

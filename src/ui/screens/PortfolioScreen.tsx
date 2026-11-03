@@ -9,7 +9,6 @@ import {
   type AssetRow,
   type PortfolioDetail,
 } from '../../application/portfolioQueries';
-import type { Dec } from '../../domain/money/decimal';
 import { formatPct, formatQty, formatUsd } from '../../domain/money/format';
 import { describeAge } from '../../domain/pricing/prices';
 import { ASSET_CLASS_LABELS } from '../../domain/types';
@@ -20,9 +19,16 @@ import { marketPriceLabel } from '../components/priceLabels';
 import { Dialog } from '../components/Dialog';
 import { HoldingUpdateForm } from '../components/HoldingUpdateForm';
 import { assetRepo } from '../../data/repositories/assetRepo';
+import { Field } from '../components/Field';
+import { Dec } from '../../domain/money/decimal';
+
+const DecParse = (t: string) => Dec.tryParse(t);
 import { LinkStatusLine, PriceLinkEditor } from '../components/PriceLink';
 import { PerformanceChart } from '../components/PerformanceChart';
 import { ProjectionCard } from '../components/ProjectionCard';
+import { SignalsCard } from '../components/SignalsCard';
+import { RiskCard } from '../components/RiskCard';
+import type { Signal } from '../../domain/signals/holdingSignals';
 
 /** Bar colours for allocation slices, largest first. They step in lightness so they stay distinguishable without hue. */
 const SLICE_COLORS = ['#1F5FBF', '#5585CF', '#8BAADF', '#B9CDEB', '#DCE6F5'];
@@ -32,6 +38,9 @@ type Modal = { kind: 'none' } | { kind: 'price'; row: AssetRow } | { kind: 'asse
 
 export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
   const detail = useLiveQuery(() => loadPortfolioDetail(portfolioId), PORTFOLIO_STORES, [portfolioId]);
+  const insights = useLiveQuery(() => loadPortfolioHistory(portfolioId), PORTFOLIO_STORES, [portfolioId]);
+  const ins = insights.status === 'ready' ? insights.data : null;
+  const signalsOf = (instrumentId: string) => ins?.signals.find((h) => h.instrumentId === instrumentId)?.signals ?? [];
   const [modal, setModal] = useState<Modal>({ kind: 'none' });
   const close = () => setModal({ kind: 'none' });
 
@@ -95,7 +104,9 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
         </div>
       )}
 
-      <PerformanceSection portfolioId={portfolio.id} />
+      {ins && <SignalsCard portfolioId={portfolio.id} signals={ins.signals} settings={ins.settings} />}
+
+      {ins && <PerformanceChart series={ins.series} />}
 
       <AllocationCard detail={detail.data} />
 
@@ -116,6 +127,7 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
               <HoldingRow
                 key={row.link.id}
                 row={row}
+                signals={signalsOf(row.instrument.id)}
                 onUpdatePrice={() => setModal({ kind: 'price', row })}
                 onMore={() => setModal({ kind: 'asset', row })}
               />
@@ -123,6 +135,9 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
           </ul>
         )}
       </section>
+
+      {ins && <RiskCard risk={ins.risk} />}
+      {ins && <ProjectionCard series={ins.series} annual={ins.annual} yearlyContribution={ins.yearlyContribution} />}
 
       <nav className="card nav-list" aria-label="Portfolio sections">
         <a href={href.money(portfolio.id)}>
@@ -246,19 +261,8 @@ function AllocationCard({ detail }: { detail: PortfolioDetail }) {
   );
 }
 
-function PerformanceSection({ portfolioId }: { portfolioId: string }) {
-  const history = useLiveQuery(() => loadPortfolioHistory(portfolioId), PORTFOLIO_STORES, [portfolioId]);
-  if (history.status !== 'ready') return null;
-  const { series, annual, yearlyContribution } = history.data;
-  return (
-    <>
-      <PerformanceChart series={series} />
-      <ProjectionCard series={series} annual={annual} yearlyContribution={yearlyContribution} />
-    </>
-  );
-}
-
-function HoldingRow({ row, onUpdatePrice, onMore }: { row: AssetRow; onUpdatePrice: () => void; onMore: () => void }) {
+function HoldingRow({ row, signals, onUpdatePrice, onMore }: { row: AssetRow; signals: Signal[]; onUpdatePrice: () => void; onMore: () => void }) {
+  const worst = signals.some((s) => s.severity === 'warning') ? 'warning' : signals.length ? 'watch' : null;
   const { instrument, holding, quantity, price, manualStatus } = row;
   const manual = instrument.priceSource === 'manual';
   const unitWord = manual ? 'units' : 'shares';
@@ -275,6 +279,12 @@ function HoldingRow({ row, onUpdatePrice, onMore }: { row: AssetRow; onUpdatePri
           )}
         </span>
         <span className="row-end nowrap">
+          {worst && (
+            <a className={`badge ${worst === 'warning' ? 'badge-warn' : 'badge-neutral'} badge-link`} href="#signals-title" title={signals.map((s) => s.title).join(' · ')}>
+              <span aria-hidden="true">{worst === 'warning' ? '⚠ ' : '● '}</span>
+              {signals.length} {signals.length === 1 ? 'signal' : 'signals'}
+            </a>
+          )}
           <span className="strong">{holding ? formatUsd(holding.value) : '—'}</span>
           <button className="btn-icon small-icon" aria-label={`More options for ${instrument.symbol ?? instrument.name}`} onClick={onMore}>
             ···
@@ -385,6 +395,7 @@ function AssetActions({ row, onDone }: { row: AssetRow; onDone: () => void }) {
         </label>
       )}
       {row.instrument.priceSource === 'manual' && <PriceLinkEditor instrument={row.instrument} />}
+      <StopLossEditor row={row} />
       <button
         className="btn btn-danger-outline"
         disabled={busy}
@@ -414,5 +425,53 @@ function AssetActions({ row, onDone }: { row: AssetRow; onDone: () => void }) {
         Done
       </button>
     </div>
+  );
+}
+
+function StopLossEditor({ row }: { row: AssetRow }) {
+  const [text, setText] = useState(row.link.stopLoss ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const save = async () => {
+    setSaved(false);
+    const t = text.trim().replace(/[$,]/g, '');
+    if (t && !(DecParse(t)?.isPositive() ?? false)) {
+      setError('Enter a price above 0, or leave empty for no alert.');
+      return;
+    }
+    setError(null);
+    await assetRepo.setStopLoss(row.link, t || undefined);
+    setSaved(true);
+  };
+  return (
+    <section className="stack-tight">
+      <Field
+        label="Alert price ($)"
+        error={error ?? undefined}
+        hint={`A warning when the price falls to this level${row.price ? ` (now ${formatUsd(row.price.price, 4)})` : ''}. The app never sells.`}
+      >
+        {(p) => (
+          <input
+            {...p}
+            className="input"
+            inputMode="decimal"
+            placeholder="No alert"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setSaved(false);
+            }}
+          />
+        )}
+      </Field>
+      <div className="row-start">
+        <button type="button" className="btn btn-small btn-outline" onClick={() => void save()}>
+          Save alert
+        </button>
+        <span className="small" role="status">
+          {saved && (text.trim() ? 'Alert saved.' : 'Alert removed.')}
+        </span>
+      </div>
+    </section>
   );
 }

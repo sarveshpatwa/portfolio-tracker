@@ -217,6 +217,14 @@ export const assetRepo = {
     return all.filter((i) => i.priceSource === 'manual' && groupKey(i.name) === key).map((i) => i.id);
   },
 
+  /** Sets or clears (undefined) a holding's alert price. */
+  async setStopLoss(link: PortfolioAsset, price: string | undefined): Promise<void> {
+    const db = await getDb();
+    const { stopLoss: _old, ...rest } = link;
+    const updated: PortfolioAsset = { ...rest, ...(price ? { stopLoss: price } : {}), updatedAt: new Date().toISOString() };
+    await db.write([S.portfolioAssets], ({ put }) => put(S.portfolioAssets, updated));
+  },
+
   async setReminder(link: PortfolioAsset, reminderDays: number | undefined): Promise<void> {
     const db = await getDb();
     const { priceReminderDays: _old, ...rest } = link;

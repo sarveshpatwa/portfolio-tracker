@@ -66,7 +66,7 @@ export function PortfoliosScreen() {
       )}
       {portfolios.status === 'ready' && portfolios.data.length > 0 && (
         <ul className="list" aria-label="Your portfolios">
-          {portfolios.data.map(({ portfolio: p, valuation, assetCount, pricesDue, recurring, trend }) => (
+          {portfolios.data.map(({ portfolio: p, valuation, assetCount, pricesDue, recurring, trend, signalCounts }) => (
             <li key={p.id} className="card portfolio-card">
               <div className="row-between">
                 <h2 className="card-title">
@@ -75,6 +75,12 @@ export function PortfoliosScreen() {
                   </a>
                 </h2>
                 <div className="row-end nowrap">
+                  {signalCounts.warning + signalCounts.watch > 0 && (
+                    <span className={`badge ${signalCounts.warning ? 'badge-warn' : 'badge-neutral'}`}>
+                      <span aria-hidden="true">{signalCounts.warning ? '⚠ ' : '● '}</span>
+                      {signalCounts.warning + signalCounts.watch} {signalCounts.warning + signalCounts.watch === 1 ? 'signal' : 'signals'}
+                    </span>
+                  )}
                   {pricesDue > 0 && (
                     <span className="badge badge-warn">
                       {pricesDue} price {pricesDue === 1 ? 'update' : 'updates'} due

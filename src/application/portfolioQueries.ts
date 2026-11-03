@@ -14,7 +14,7 @@ import { replayLedger } from '../domain/portfolio/ledger';
 import { valuePortfolio, type HoldingValue, type PortfolioValue } from '../domain/portfolio/valuation';
 import { breakdownByClass, type ClassSlice } from '../domain/portfolio/breakdown';
 import { manualPriceStatus, priceMap, priceOnOrBefore, pricesOnOrBefore, type DatedPrice, type ManualPriceStatus } from '../domain/pricing/prices';
-import type { Instrument, Portfolio, PortfolioAsset, PricePoint, Transaction } from '../domain/types';
+import type { Instrument, Portfolio, PortfolioAsset, PricePoint, SignalSettings, Transaction } from '../domain/types';
 import { portfolioRepo } from '../data/repositories/portfolioRepo';
 import { assetRepo, priceRepo, transactionRepo } from '../data/repositories/assetRepo';
 import { S } from '../data/db/schema';
@@ -24,6 +24,8 @@ import { FREQUENCIES } from '../domain/contributions/forms';
 import { formatUsd } from '../domain/money/format';
 import { cagr, thin, valueHistory, type DayValue } from '../domain/portfolio/history';
 import { yearlyContributions } from '../domain/portfolio/projection';
+import { hasDailyPrices, holdingSignals, settingsWithDefaults, type Signal } from '../domain/signals/holdingSignals';
+import { riskProfile, type RiskProfile } from '../domain/signals/risk';
 
 const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
@@ -34,6 +36,8 @@ export interface PortfolioSummary {
   portfolio: Portfolio;
   /** Value over the last 3 months (thinned) for the card's trend line. */
   trend: DayValue[];
+  /** Number of warning / watch signals across holdings. */
+  signalCounts: { warning: number; watch: number };
   assetCount: number;
   valuation: PortfolioValue;
   pricesDue: number;
@@ -73,11 +77,15 @@ export async function loadPortfolioSummaries(today: IsoDate = todayLocal()): Pro
   return portfolios.map((p) => {
     const own = links.filter((l) => l.portfolioId === p.id);
     const detail = compute(p, own, instrumentsById, txs.filter((t) => t.portfolioId === p.id), prices, today);
+    const sig = signalsFor(detail, prices);
+    const all = sig.flatMap((h) => h.signals);
+    const warning = all.filter((x) => x.severity === 'warning').length;
     const series = historyFor(txs.filter((t) => t.portfolioId === p.id), prices, today);
     const from = addMonths(series[series.length - 1]?.date ?? today, -3);
     return {
       portfolio: p,
       trend: thin(series.filter((d) => d.date >= from), 48),
+      signalCounts: { warning, watch: all.length - warning },
       assetCount: own.length,
       valuation: detail.valuation,
       pricesDue: detail.rows.filter((r) => r.manualStatus?.updateDue).length,
@@ -179,16 +187,74 @@ function historyFor(txs: readonly Transaction[], prices: readonly PricePoint[], 
   return valueHistory(txs.map((t) => (t.date > end ? { ...t, date: end } : t)), pts, end);
 }
 
+export interface HoldingSignals {
+  instrumentId: string;
+  name: string;
+  signals: Signal[];
+}
+
 export interface PortfolioHistory {
   series: DayValue[];
   /** Annualised return, or null with under 3 months of history. */
   annual: { rate: number; days: number } | null;
   /** Yearly amount of running recurring contributions. */
   yearlyContribution: number;
+  /** Holdings with at least one signal, warnings first. */
+  signals: HoldingSignals[];
+  risk: RiskProfile;
+  settings: SignalSettings;
 }
 
-export async function loadPortfolioHistory(portfolioId: string, today: IsoDate = todayLocal()): Promise<PortfolioHistory> {
-  const [txs, prices, rules] = await Promise.all([transactionRepo.listForPortfolio(portfolioId), priceRepo.listAll(), contributionRepo.rules(portfolioId)]);
+/** Signals for every held asset (information only — nothing is traded). */
+function signalsFor(detail: PortfolioDetail, prices: readonly PricePoint[]): HoldingSignals[] {
+  const settings = settingsWithDefaults(detail.portfolio.signalSettings);
+  const out: HoldingSignals[] = [];
+  for (const row of detail.rows) {
+    if (!row.holding || row.quantity.isZero()) continue;
+    const own = prices
+      .filter((p) => p.instrumentId === row.instrument.id && p.date <= todayLocal())
+      .map((p) => ({ date: p.date, close: Dec.from(p.close).toNumber() }));
+    const signals = holdingSignals({
+      prices: own,
+      weight: row.holding.weight.toNumber(),
+      ...(row.link.stopLoss ? { stopLoss: Dec.from(row.link.stopLoss).toNumber() } : {}),
+      settings,
+    });
+    if (signals.length) out.push({ instrumentId: row.instrument.id, name: row.instrument.symbol ?? row.instrument.name, signals });
+  }
+  const rank = (h: HoldingSignals) => (h.signals.some((x) => x.severity === 'warning') ? 0 : 1);
+  return out.sort((a, b) => rank(a) - rank(b));
+}
+
+function riskFor(detail: PortfolioDetail, series: readonly DayValue[], prices: readonly PricePoint[]): RiskProfile {
+  const holdings = detail.valuation.holdings.filter((h) => h.value.isPositive());
+  const total = detail.valuation.totalValue.toNumber();
+  const weights = holdings.map((h) => h.weight.toNumber());
+  if (total > 0 && detail.valuation.cash.isPositive()) weights.push(detail.valuation.cash.toNumber() / total);
+  const sparse = holdings
+    .filter((h) => !hasDailyPrices(prices.filter((p) => p.instrumentId === h.instrumentId).map((p) => ({ date: p.date, close: 0 }))))
+    .reduce((a, h) => a + h.weight.toNumber(), 0);
+  return riskProfile(series, weights, sparse);
+}
+
+export async function loadPortfolioHistory(portfolioId: string, today: IsoDate = todayLocal()): Promise<PortfolioHistory | null> {
+  const portfolio = await portfolioRepo.get(portfolioId);
+  if (!portfolio) return null;
+  const [txs, prices, rules, links, instruments] = await Promise.all([
+    transactionRepo.listForPortfolio(portfolioId),
+    priceRepo.listAll(),
+    contributionRepo.rules(portfolioId),
+    assetRepo.listForPortfolio(portfolioId),
+    assetRepo.listInstruments(),
+  ]);
   const series = historyFor(txs, prices, today);
-  return { series, annual: cagr(series), yearlyContribution: yearlyContributions(rules, today) };
+  const detail = compute(portfolio, links, new Map(instruments.map((i) => [i.id, i])), txs, prices, today);
+  return {
+    series,
+    annual: cagr(series),
+    yearlyContribution: yearlyContributions(rules, today),
+    signals: signalsFor(detail, prices),
+    risk: riskFor(detail, series, prices),
+    settings: settingsWithDefaults(portfolio.signalSettings),
+  };
 }

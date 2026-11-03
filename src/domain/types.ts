@@ -41,6 +41,23 @@ export interface Portfolio {
   topUpWholeShares: boolean;
   /** Optional annual fee as a percentage, e.g. "1.0" for 1%/yr. Absent = no fee. */
   annualFeePct?: DecimalString;
+  /** Signal thresholds for this portfolio (absent = defaults, see signals/holdingSignals.ts). */
+  signalSettings?: SignalSettings;
+}
+
+/** Thresholds for holding signals. Percentages are plain numbers, e.g. 10 for 10%. */
+export interface SignalSettings {
+  /** Price fell at least this % over `declineDays` calendar days. */
+  declinePct: number;
+  declineDays: number;
+  /** Price is at least this % below its 52-week high. */
+  drawdownPct: number;
+  /** One holding is at least this % of the portfolio. */
+  concentrationPct: number;
+  /** Recent (20-day) volatility is at least this many times its usual level. */
+  volatilityMultiple: number;
+  /** Warn when the price is below its N-day average (0 = off). */
+  movingAverageDays: number;
 }
 
 export type AssetClass = 'stock' | 'etf' | 'bond' | 'fund' | 'other';
@@ -84,6 +101,8 @@ export interface PortfolioAsset {
   instrumentId: Id;
   /** Manual assets: remind to update the price after this many days (7, 14…). Absent = never. */
   priceReminderDays?: number;
+  /** Optional alert level: a warning when the price is at or below it (the app never sells). */
+  stopLoss?: DecimalString;
   addedAt: string;
   updatedAt: string;
 }

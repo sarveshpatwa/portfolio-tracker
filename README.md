@@ -308,6 +308,28 @@ rate (e.g. 5 or 7%) to compare. It appears after about 3 months of history and a
 assumptions: steady growth, contributions continue, no fees or taxes, past returns don't predict
 future ones. Formulas are in `src/domain/portfolio/history.ts` and `projection.ts`.
 
+## Signals and risk profile
+
+Information only — the app never buys or sells.
+
+**Signals** (top of each portfolio; a badge also appears on the holding and the portfolio card):
+
+| Signal | When | Level |
+|---|---|---|
+| Decline | price down ≥ 10% in 30 days | Watch (Warning at 2×) |
+| Off its high | ≥ 20% below the highest price of the last year | Warning |
+| Below average | under its 50-day average by > 2% (daily prices only) | Watch |
+| Swinging more than usual | last 20 days' volatility ≥ 2× the year before (daily prices only) | Watch |
+| Concentration | one holding ≥ 30% of the portfolio | Watch (Warning at 60%) |
+| Alert price | price at/below the level you set on the holding (··· → Alert price) | Warning (Watch within 5%) |
+
+**Adjust alerts** changes the thresholds per portfolio (synced via backups).
+Hand-priced assets get only the signals that make sense for weekly/bi-weekly prices.
+
+**Risk profile** scores three measures low/medium/high and averages them: volatility (last
+year), largest drop (whole history, contributions removed) and concentration (largest holding).
+Volatility and largest drop need 60 days of history. Formulas: `src/domain/signals/`.
+
 ## Data and privacy
 
 - All data is stored in this browser's IndexedDB, on this device only. Nothing
@@ -334,5 +356,5 @@ future ones. Formulas are in `src/domain/portfolio/history.ts` and `projection.t
 | 6 | Money & allocation: versioned targets, buy rules, one-time and recurring contributions (with back-fill and catch-up), ledger + CSV | ✅ |
 | 6.5 | Price links: daily prices for Vanguard funds without a ticker, via your free Cloudflare relay | ✅ |
 | 7 | Dashboard: performance chart (1D–All, time-weighted return), projection estimate, card trend lines | ✅ |
-| 8 | Signals & risk profile | |
+| 8 | Signals (decline, off-high, below average, volatility, concentration, alert price) & risk profile | ✅ |
 | 9 | Compare: equal-money backtest, TWR view, Sharpe, drawdown; Track a switch | |
