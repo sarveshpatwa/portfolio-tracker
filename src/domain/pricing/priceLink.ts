@@ -222,3 +222,65 @@ export function linkPricePoint(
   if (same && Dec.from(same.close).eq(fetched.price)) return null;
   return { instrumentId, date: fetched.date, close: fetched.price.toString(), source: 'link', updatedAt: now };
 }
+
+// ---------------------------------------------------------------------------
+// The same price data also carries the fund's yield and its last ~10 prices:
+//   currentPrice.yield = { asOfDate, yieldPct: "3.89", compoundYieldPct: "3.96",
+//                          yieldNote: [{ footnoteText: "AVERAGE ANNUALIZED INCOME
+//                          DIVIDEND OVER THE PAST 7 DAYS" }] }
+//   historicalPrice.nav[0].item = [{ asOfDate, price }, …]
+// (Vanguard's own page asks for it wrapped as JSONP — angular.callbacks._8({...}) —
+// so the wrapper is removed before parsing.)
+
+/** Parses Vanguard's answer, with or without a JSONP wrapper. Throws on anything else. */
+export function parseFeedBody(text: string): unknown {
+  const t = text.trim();
+  const jsonp = /^[\w$.]+\(([\s\S]*)\)\s*;?$/.exec(t);
+  return JSON.parse(jsonp ? jsonp[1]! : t);
+}
+
+export interface FeedYield {
+  /** Simple annualised yield, e.g. "3.89" (%). */
+  pct: string;
+  date: IsoDate;
+  /** Compounded yield, when given (e.g. "3.96"). */
+  compoundPct?: string;
+  /** 7 for money market funds, 30 for bond / stable value funds — from the footnote. */
+  days?: 7 | 30;
+  note?: string;
+}
+
+export function parseFeedYield(data: unknown): FeedYield | null {
+  const y = dig(data, ['currentPrice', 'yield']) ?? dig(data, ['yield']);
+  if (!y || typeof y !== 'object') return null;
+  const o = y as Record<string, unknown>;
+  const pct = typeof o.yieldPct === 'string' || typeof o.yieldPct === 'number' ? String(o.yieldPct).trim() : '';
+  const n = Number(pct);
+  const date = toIsoDate(o.asOfDate);
+  if (!pct || !Number.isFinite(n) || n < 0 || n > 50 || !date) return null;
+  const notes = Array.isArray(o.yieldNote) ? (o.yieldNote as unknown[]) : [];
+  const note = notes
+    .map((x) => (x && typeof x === 'object' ? String((x as Record<string, unknown>).footnoteText ?? '') : ''))
+    .filter(Boolean)
+    .join(' ');
+  const days = /\b7[\s-]*DAY|PAST 7 DAYS/i.test(note) ? 7 : /\b30[\s-]*DAY|PAST 30 DAYS/i.test(note) ? 30 : undefined;
+  const compound = typeof o.compoundYieldPct === 'string' && Number.isFinite(Number(o.compoundYieldPct)) ? o.compoundYieldPct : undefined;
+  return { pct: String(n), date, ...(compound ? { compoundPct: compound } : {}), ...(days ? { days } : {}), ...(note ? { note } : {}) };
+}
+
+/** Recent daily prices (Vanguard sends about the last 10 trading days). */
+export function parseFeedHistory(data: unknown): FeedPrice[] {
+  const nav = dig(data, ['historicalPrice', 'nav']);
+  if (!Array.isArray(nav)) return [];
+  const out: FeedPrice[] = [];
+  for (const block of nav) {
+    const items = dig(block, ['item']);
+    if (!Array.isArray(items)) continue;
+    for (const it of items) {
+      const price = toPrice(dig(it, ['price']));
+      const date = toIsoDate(dig(it, ['asOfDate']));
+      if (price && date && !out.some((p) => p.date === date)) out.push({ price, date });
+    }
+  }
+  return out.sort((a, b) => (a.date < b.date ? -1 : 1));
+}

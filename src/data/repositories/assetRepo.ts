@@ -15,13 +15,13 @@ import { holdingUpdateRecords, type HoldingUpdate } from '../../domain/assets/ho
 import { LedgerError, replayLedger } from '../../domain/portfolio/ledger';
 import { planAssetDeletion, type AssetDeletionPlan } from '../../domain/assets/deleteAsset';
 import type { MarketStart } from '../../domain/assets/marketAssetForm';
-import type { Deletion, Instrument, PortfolioAsset, PricePoint, Transaction } from '../../domain/types';
+import type { Deletion, Instrument, PortfolioAsset, PricePoint, Transaction, YieldEntry } from '../../domain/types';
 import { getDb, S } from '../db/schema';
 import { newId, nextSeq } from '../ids';
 import { ValidationError } from './errors';
 import type { PriceLink } from '../../domain/pricing/priceLink';
 import { groupKey } from '../../domain/pricing/fundGroups';
-import { correctedDividend } from '../../domain/income/dividends';
+import { correctedDividend, withFetchedYield } from '../../domain/income/dividends';
 
 export const assetRepo = {
   async listForPortfolio(portfolioId: string): Promise<PortfolioAsset[]> {
@@ -214,7 +214,7 @@ export const assetRepo = {
    * Turns income-fund tracking on (with a first 7-day SEC yield), records a new
    * yield (replacing one on the same date), or turns it off (undefined).
    */
-  async setIncomeYield(instrumentId: string, entry: { date: string; pct: string } | undefined): Promise<void> {
+  async setIncomeYield(instrumentId: string, entry: YieldEntry | undefined): Promise<void> {
     const db = await getDb();
     const instrument = await db.get<Instrument>(S.instruments, instrumentId);
     if (!instrument) throw new ValidationError('That asset no longer exists.');
@@ -224,6 +224,27 @@ export const assetRepo = {
       : undefined;
     const updated: Instrument = { ...rest, ...(income ? { income } : {}), updatedAt: new Date().toISOString() };
     await db.write([S.instruments], ({ put }) => put(S.instruments, updated));
+  },
+
+  /** Turns income-fund tracking on without a yield yet (it comes with the next Vanguard fetch). */
+  async enableIncome(instrumentId: string): Promise<void> {
+    const db = await getDb();
+    const instrument = await db.get<Instrument>(S.instruments, instrumentId);
+    if (!instrument || instrument.income) return;
+    const updated: Instrument = { ...instrument, income: { since: new Date().toISOString().slice(0, 10), yields: [] }, updatedAt: new Date().toISOString() };
+    await db.write([S.instruments], ({ put }) => put(S.instruments, updated));
+  },
+
+  /** Stores a yield fetched with the Vanguard price (see withFetchedYield). */
+  async addFetchedYield(instrumentId: string, fetched: { date: string; pct: string; days?: 7 | 30 }): Promise<boolean> {
+    const db = await getDb();
+    const instrument = await db.get<Instrument>(S.instruments, instrumentId);
+    if (!instrument?.income) return false;
+    const yields = withFetchedYield(instrument.income.yields, fetched);
+    if (!yields) return false;
+    const updated: Instrument = { ...instrument, income: { ...instrument.income, yields }, updatedAt: new Date().toISOString() };
+    await db.write([S.instruments], ({ put }) => put(S.instruments, updated));
+    return true;
   },
 
   /** Replaces an income-fund dividend with the amount from your statement. */

@@ -25,7 +25,7 @@
 import { Dec } from '../money/decimal';
 import { addDays, type IsoDate } from '../calendar/dates';
 import { nextTradingDayOnOrAfter } from '../calendar/usMarket';
-import type { Id, Instrument, Transaction } from '../types';
+import type { Id, Instrument, Transaction, YieldEntry } from '../types';
 
 export type Month = string; // YYYY-MM
 
@@ -148,4 +148,16 @@ export function correctedDividend(tx: Transaction, actualUnits: Dec, now: string
   const { estimated: _e, ...rest } = tx;
   const m = tx.id.split(':').pop()!;
   return { ...rest, quantity: actualUnits.toString(), amount: actualUnits.toString(), note: `Dividend ${m} (actual)`, updatedAt: now };
+}
+
+/**
+ * Adds a yield fetched with the Vanguard price. A yield you typed for the same
+ * date wins; a fetched one is replaced when Vanguard revises it. Returns null
+ * when nothing changes.
+ */
+export function withFetchedYield(yields: readonly YieldEntry[], fetched: { date: IsoDate; pct: string; days?: 7 | 30 }): YieldEntry[] | null {
+  const same = yields.find((y) => y.date === fetched.date);
+  if (same && (same.source !== 'fetched' || (same.pct === fetched.pct && same.days === fetched.days))) return null;
+  const entry: YieldEntry = { date: fetched.date, pct: fetched.pct, source: 'fetched', ...(fetched.days ? { days: fetched.days } : {}) };
+  return [...yields.filter((y) => y.date !== fetched.date), entry].sort((a, b) => (a.date < b.date ? -1 : 1));
 }

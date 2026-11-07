@@ -67,3 +67,15 @@ describe('income fund dividends', () => {
     expect(mergeSnapshots({ ...empty, transactions: [buy] } as never, { ...empty, transactions: [changed] } as never).result.transactions[0]!.quantity).toBe('69.045');
   });
 });
+
+describe('fetched yields', () => {
+  it('adds a fetched yield; a typed one on the same date wins; revisions replace fetched', async () => {
+    const { withFetchedYield } = await import('../../../src/domain/income/dividends');
+    const typed = [{ date: '2026-11-05', pct: '3.9', source: 'typed' as const }];
+    expect(withFetchedYield(typed, { date: '2026-11-05', pct: '3.89', days: 7 })).toBeNull();
+    const added = withFetchedYield(typed, { date: '2026-11-06', pct: '3.88', days: 7 })!;
+    expect(added.map((y) => y.date)).toEqual(['2026-11-05', '2026-11-06']);
+    expect(withFetchedYield(added, { date: '2026-11-06', pct: '3.88', days: 7 })).toBeNull();
+    expect(withFetchedYield(added, { date: '2026-11-06', pct: '3.87', days: 7 })![1]!.pct).toBe('3.87');
+  });
+});

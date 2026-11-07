@@ -84,9 +84,17 @@ export interface Instrument {
    * daily from the 7-day SEC yield and booked monthly as new units
    * (see income/dividends.ts). `since` = when this was turned on.
    */
-  income?: { since: string; yields: { date: string; pct: string }[] };
+  income?: { since: string; yields: YieldEntry[] };
   createdAt: string;
   updatedAt: string;
+}
+
+/** A fund yield on a date: typed by you, or fetched with the Vanguard price (7- or 30-day SEC yield). */
+export interface YieldEntry {
+  date: string;
+  pct: string;
+  source?: 'typed' | 'fetched';
+  days?: 7 | 30;
 }
 
 export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {

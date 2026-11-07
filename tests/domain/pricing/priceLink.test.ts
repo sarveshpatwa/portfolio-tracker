@@ -155,3 +155,34 @@ describe('linkPricePoint', () => {
     expect(linkPricePoint([], 'F', fetched, at, '2026-10-29')).toBeNull();
   });
 });
+
+describe('Vanguard price data — real response for fund 0066 (Nov 6, 2026)', async () => {
+  const { parseFeedBody, parseFeedHistory, parseFeedYield } = await import('../../../src/domain/pricing/priceLink');
+  const { VANGUARD_0066_JSONP: raw } = await import('../../fixtures/vanguard0066');
+  const data = parseFeedBody(raw);
+
+  it('unwraps the JSONP callback and still reads plain JSON', () => {
+    expect(parseFeedPrice(data)).toEqual({ price: d('1.00'), date: '2026-11-06' });
+    expect(parseFeedPrice(parseFeedBody('{"currentPrice":{"dailyPrice":{"regular":{"price":"2","asOfDate":"2026-11-06"}}}}'))?.date).toBe('2026-11-06');
+  });
+  it('reads the 7-day SEC yield from the footnote', () => {
+    expect(parseFeedYield(data)).toEqual({
+      pct: '3.89',
+      date: '2026-11-05',
+      compoundPct: '3.96',
+      days: 7,
+      note: 'AVERAGE ANNUALIZED INCOME DIVIDEND OVER THE PAST 7 DAYS',
+    });
+  });
+  it('recognises a 30-day SEC yield (stable value / bond funds) and missing yields', () => {
+    const y = parseFeedYield({ currentPrice: { yield: { asOfDate: '2026-10-31T00:00:00-04:00', yieldPct: '3.12', yieldNote: [{ footnoteText: '30-DAY SEC YIELD' }] } } });
+    expect(y?.days).toBe(30);
+    expect(parseFeedYield({ currentPrice: { dailyPrice: {} } })).toBeNull();
+  });
+  it('reads the recent price history, oldest first', () => {
+    const h = parseFeedHistory(data);
+    expect(h).toHaveLength(11);
+    expect(h[0]!.date).toBe('2026-10-23');
+    expect(h[10]!.date).toBe('2026-11-06');
+  });
+});

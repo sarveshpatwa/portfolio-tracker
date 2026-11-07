@@ -6,7 +6,7 @@
 
 import { todayInNewYork, type IsoDate } from '../domain/calendar/dates';
 import { dueDividends, estimateMonth, monthOf, type MonthEstimate } from '../domain/income/dividends';
-import type { Instrument, Transaction } from '../domain/types';
+import type { Instrument, Transaction, YieldEntry } from '../domain/types';
 import { assetRepo, transactionRepo } from '../data/repositories/assetRepo';
 import { contributionRepo } from '../data/repositories/contributionRepo';
 import { nextSeq } from '../data/ids';
@@ -45,7 +45,7 @@ export const incomeService = new IncomeService();
 export interface IncomeStatus {
   /** This month's estimate so far (through today). */
   accrued: MonthEstimate | null;
-  currentYield: { date: IsoDate; pct: string } | null;
+  currentYield: YieldEntry | null;
   /** Booked dividends (newest first). */
   dividends: Transaction[];
 }

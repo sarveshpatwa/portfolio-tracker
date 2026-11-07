@@ -11,10 +11,10 @@
 import { latestCompletedTradingDay } from '../domain/market/marketHours';
 import { todayInNewYork } from '../domain/calendar/dates';
 import { linkFetchDue, linkPricePoint, newestSettledDate, type FeedPrice } from '../domain/pricing/priceLink';
-import type { Id, Instrument } from '../domain/types';
+import type { Id, Instrument, PricePoint } from '../domain/types';
 import { assetRepo, priceRepo } from '../data/repositories/assetRepo';
 import { settingsRepo, type LinkAttempts } from '../data/repositories/settingsRepo';
-import { fetchLinkPrice, LinkFetchError, type FetchFn } from '../data/providers/linkPrice';
+import { fetchLinkData, fetchLinkPrice, LinkFetchError, type FetchFn, type LinkData } from '../data/providers/linkPrice';
 
 type Listener = () => void;
 
@@ -85,7 +85,7 @@ class LinkPriceService {
     let saved = 0;
     let changed = relayWasSet !== this.relaySet;
     // The same fund in several portfolios is fetched once per run.
-    const results = new Map<string, Promise<FeedPrice>>();
+    const results = new Map<string, Promise<LinkData>>();
     for (const inst of linked) {
       const points = await priceRepo.listForInstrument(inst.id);
       const newest = newestSettledDate(points, inst.priceLink.since);
@@ -97,13 +97,20 @@ class LinkPriceService {
       changed = true;
       try {
         const code = inst.priceLink.fundId;
-        if (!results.has(code)) results.set(code, fetchLinkPrice(settings.relayUrl, settings.feedTemplate, code, this.fetchFn));
-        const price: FeedPrice = await results.get(code)!;
-        const point = linkPricePoint(points, inst.id, price, now.toISOString(), today, inst.priceLink.since);
-        if (point) {
-          await priceRepo.putMany([point]);
-          saved++;
+        if (!results.has(code)) results.set(code, fetchLinkData(settings.relayUrl, settings.feedTemplate, code, this.fetchFn));
+        const data = await results.get(code)!;
+        // The latest price plus the last ~10 days (fills days the app wasn't opened).
+        const toSave: PricePoint[] = [];
+        for (const fp of [...data.history, data.price] as FeedPrice[]) {
+          const point = linkPricePoint([...points, ...toSave], inst.id, fp, now.toISOString(), today, inst.priceLink.since);
+          if (point && !toSave.some((p) => p.date === point.date)) toSave.push(point);
         }
+        if (toSave.length) {
+          await priceRepo.putMany(toSave);
+          saved += toSave.length;
+        }
+        // $1.00 income funds: keep the fund's yield history up to date.
+        if (inst.income && data.yield) await assetRepo.addFetchedYield(inst.id, data.yield);
         this.attempts[inst.id] = { at: now.getTime() };
       } catch (err) {
         if (err instanceof LinkFetchError && err.kind === 'offline') {

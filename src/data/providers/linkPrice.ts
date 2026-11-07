@@ -4,7 +4,7 @@
  * network call and turns failures into plain-language messages.
  */
 
-import { feedUrl, parseFeedPrice, relayRequestUrl, type FeedPrice } from '../../domain/pricing/priceLink';
+import { feedUrl, parseFeedBody, parseFeedHistory, parseFeedPrice, parseFeedYield, relayRequestUrl, type FeedPrice, type FeedYield } from '../../domain/pricing/priceLink';
 
 export type LinkErrorKind = 'no-relay' | 'offline' | 'unreachable' | 'refused' | 'format';
 
@@ -20,12 +20,25 @@ export class LinkFetchError extends Error {
 
 export type FetchFn = (url: string) => Promise<Pick<Response, 'ok' | 'status' | 'text'>>;
 
-export async function fetchLinkPrice(
+export interface LinkData {
+  price: FeedPrice;
+  /** The fund's yield, when Vanguard sends one (money market / stable value / bond funds). */
+  yield: FeedYield | null;
+  /** About the last 10 daily prices. */
+  history: FeedPrice[];
+}
+
+/** Latest price only (used by tests in Settings and Add asset). */
+export async function fetchLinkPrice(relayUrl: string, template: string, fundId: string, fetchFn?: FetchFn): Promise<FeedPrice> {
+  return (await fetchLinkData(relayUrl, template, fundId, fetchFn)).price;
+}
+
+export async function fetchLinkData(
   relayUrl: string,
   template: string,
   fundId: string,
   fetchFn: FetchFn = (url) => fetch(url, { cache: 'no-store' }),
-): Promise<FeedPrice> {
+): Promise<LinkData> {
   if (!relayUrl.trim()) throw new LinkFetchError('no-relay', 'Set up the price relay in Settings → Price links.');
   if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new LinkFetchError('offline', 'Offline.');
 
@@ -48,13 +61,13 @@ export async function fetchLinkPrice(
   }
   let data: unknown;
   try {
-    data = JSON.parse(body);
+    data = parseFeedBody(body);
   } catch {
     throw new LinkFetchError('format', 'Vanguard sent a web page instead of price data. The data address in Settings may have changed.');
   }
   const price = parseFeedPrice(data);
   if (!price) throw new LinkFetchError('format', 'Vanguard’s data didn’t include a price. The data address in Settings may have changed.');
-  return price;
+  return { price, yield: parseFeedYield(data), history: parseFeedHistory(data) };
 }
 
 /** The relay answers its own errors as {"relayError": "..."}. */

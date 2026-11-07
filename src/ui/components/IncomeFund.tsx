@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from '../../application/useLiveQuery';
 import { incomeService, loadIncomeStatus } from '../../application/incomeService';
+import { linkPriceService } from '../../application/linkPriceService';
 import { assetRepo } from '../../data/repositories/assetRepo';
 import { S } from '../../data/db/schema';
 import { Dec } from '../../domain/money/decimal';
@@ -9,7 +10,7 @@ import { payableDate, monthOf } from '../../domain/income/dividends';
 import type { Instrument } from '../../domain/types';
 import { Field } from './Field';
 
-const STORES = [S.instruments, S.transactions] as const;
+const STORES = [S.instruments, S.transactions, S.prices] as const;
 const usd = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const monthName = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const dayFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -43,11 +44,30 @@ export function IncomeEditor({ fund, portfolioId }: { fund: Instrument; portfoli
     if (!pct.trim() || !Number.isFinite(v) || v < 0 || v > 25) return setError('Enter the 7-day SEC yield, e.g. 3.89.');
     if (!isIsoDate(date) || date > today) return setError('Choose a date that isn’t in the future.');
     setError(null);
-    await assetRepo.setIncomeYield(fund.id, { date, pct: String(v) });
+    await assetRepo.setIncomeYield(fund.id, { date, pct: String(v), source: 'typed' });
     setPct('');
     setNote(`Saved ${v}% from ${dayFmt.format(parseIso(date))}.`);
     void incomeService.runDue();
   };
+
+  const linked = !!fund.priceLink;
+  const current = s.status === 'ready' ? s.data.currentYield : null;
+  const kind = (days?: 7 | 30) => (days ? `${days}-day SEC yield` : 'yield');
+  const typedForm = (
+    <div className="stack-tight">
+      <div className="grid-2">
+        <Field label="7-day SEC yield (%)" error={error ?? undefined} hint={linked ? 'Only if you want to override Vanguard’s figure.' : 'From the fund’s Vanguard page (30-day for stable value funds). Update it every week or so.'}>
+          {(p) => <input {...p} className="input" inputMode="decimal" placeholder="e.g. 3.89" value={pct} onChange={(e) => setPct(e.target.value)} />}
+        </Field>
+        <Field label="Yield as of">
+          {(p) => <input {...p} className="input" type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} />}
+        </Field>
+      </div>
+      <button type="button" className="btn btn-small btn-outline" onClick={() => void saveYield()}>
+        Save yield
+      </button>
+    </div>
+  );
 
   return (
     <section className="stack-tight">
@@ -56,8 +76,12 @@ export function IncomeEditor({ fund, portfolioId }: { fund: Instrument; portfoli
           type="checkbox"
           checked={on}
           onChange={(e) => {
-            setOn(e.target.checked);
-            if (!e.target.checked && fund.income) void assetRepo.setIncomeYield(fund.id, undefined);
+            const v = e.target.checked;
+            setOn(v);
+            if (!v && fund.income) void assetRepo.setIncomeYield(fund.id, undefined);
+            if (v && !fund.income) {
+              void assetRepo.enableIncome(fund.id).then(() => (linked ? linkPriceService.runDue({ force: true, only: fund.id }) : undefined));
+            }
           }}
         />
         <span>
@@ -66,29 +90,33 @@ export function IncomeEditor({ fund, portfolioId }: { fund: Instrument; portfoli
       </label>
       {on && (
         <div className="stack-tight income-box">
-          {s.status === 'ready' && s.data.currentYield && (
+          {current ? (
             <p className="small">
-              Using a <b>{s.data.currentYield.pct}%</b> 7-day SEC yield (from {dayFmt.format(parseIso(s.data.currentYield.date))}).
-              {s.data.accrued && (
+              Using a <b>{current.pct}%</b> {kind(current.days)} ({current.source === 'fetched' ? 'from Vanguard' : 'typed'}, as of{' '}
+              {dayFmt.format(parseIso(current.date))}).
+              {s.status === 'ready' && s.data.accrued && (
                 <>
                   {' '}
-                  {monthLabel(s.data.accrued.month).split(' ')[0]} so far: ≈ <b>{usd(s.data.accrued.amount)}</b> on ≈{' '}
-                  {Math.round(s.data.accrued.averageUnits).toLocaleString('en-US')} units, paid {dayFmt.format(parseIso(payableDate(monthOf(today))))}.
+                  {monthLabel(s.data.accrued.month).split(' ')[0]} so far: ≈ <b>{usd(s.data.accrued.amount)}</b>, paid{' '}
+                  {dayFmt.format(parseIso(payableDate(monthOf(today))))}.
                 </>
               )}
             </p>
+          ) : linked ? (
+            <p className="small muted">Waiting for the yield from Vanguard — it comes with the next price fetch.</p>
+          ) : null}
+          {linked && <p className="muted small">The yield is fetched with the daily Vanguard price (fund {fund.priceLink!.fundId}); each day’s estimate uses the yield in effect that day.</p>}
+          {linked ? (
+            <details className="details small">
+              <summary>Type a yield instead</summary>
+              {typedForm}
+            </details>
+          ) : (
+            <>
+              {typedForm}
+              <p className="muted small">Tip: add the fund’s Vanguard code (above) and the yield is fetched automatically.</p>
+            </>
           )}
-          <div className="grid-2">
-            <Field label="7-day SEC yield (%)" error={error ?? undefined} hint="From the fund’s Vanguard page. Update it every week or so.">
-              {(p) => <input {...p} className="input" inputMode="decimal" placeholder="e.g. 3.89" value={pct} onChange={(e) => setPct(e.target.value)} />}
-            </Field>
-            <Field label="Yield as of">
-              {(p) => <input {...p} className="input" type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} />}
-            </Field>
-          </div>
-          <button type="button" className="btn btn-small btn-outline" onClick={() => void saveYield()}>
-            Save yield
-          </button>
           {note && (
             <p className="small" role="status">
               {note}

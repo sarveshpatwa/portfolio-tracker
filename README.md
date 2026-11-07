@@ -256,6 +256,8 @@ few per fund per day.
 - **Existing asset:** tap **···** on the holding → paste the link or code → **Save link** (also
   applied to the same fund in your other portfolios). The same place has **Fetch now**,
   **Open Vanguard page** and removing the link.
+- The same Vanguard answer also carries the last ~10 daily prices, so days the app wasn't
+  opened are filled in.
 - **Settings → Your funds** shows every manual-price fund (all portfolios), where its price
   comes from (Vanguard code or typed), the latest price and any fetch problem, plus **Fetch all now**.
 - Prices you typed **before** setting up a code (e.g. starting prices) are replaced by
@@ -340,8 +342,13 @@ Volatility and largest drop need 60 days of history. Formulas: `src/domain/signa
 These keep their price at $1.00 and pay income as **new units**: each day the fund declares a
 rate per unit, and the month's total is paid on the first business day of the next month.
 
-Holding → **···** → tick **$1.00 income fund** → enter the **7-day SEC yield** from the fund's
-Vanguard page (update it every week or so; each day uses the yield in effect then).
+Holding → **···** → tick **$1.00 income fund**.
+
+- **With a Vanguard code** (recommended): the yield is **fetched automatically** with the daily
+  price — the 7-day SEC yield for money market funds, the 30-day SEC yield for stable value funds
+  (e.g. Vanguard Retirement Savings Trust II). Vanguard's footnote tells the app which one it is.
+  Each day's estimate uses the yield in effect that day. *Type a yield instead* overrides it.
+- **Without a code:** type the SEC yield from the fund's Vanguard page every week or so.
 
 - The holding shows the dividend earned so far this month (estimated):
   `units held each day × yield ÷ 365`, summed over the days. Purchases start earning the next day.
@@ -409,4 +416,5 @@ the money went to (new). Set both portfolios and their assets up first.
 | 7 | Dashboard: performance chart (1D–All, time-weighted return), projection estimate, card trend lines | ✅ |
 | 8 | Signals (decline, off-high, below average, volatility, concentration, alert price) & risk profile | ✅ |
 | 9 | Compare: equal-money backtest (headline), actual time-weighted record, Sharpe, largest drop; Track a switch with statement check, mirrored new money, optional fees | ✅ |
+| 1.1 | Yields fetched automatically for $1.00 income funds (7-day / 30-day SEC); recent price history from the same answer | ✅ |
 | 1.0 | Polish: $1.00 income funds (daily dividend estimate, monthly booking, statement correction), price question on Add asset, status-only fund list, dark mode, change recurring amount, confirm unchanged price | ✅ |
