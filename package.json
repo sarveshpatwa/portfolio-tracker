@@ -1,7 +1,7 @@
 {
   "name": "portfolio-tracker",
   "private": true,
-  "version": "0.9.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Personal PWA for tracking and comparing simulated investment portfolios.",
   "scripts": {

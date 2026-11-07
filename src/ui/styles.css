@@ -21,7 +21,56 @@
   --radius-control: 10px;
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --tabbar-height: 64px;
+  --on-accent: #ffffff;
+  --divider: #ececE8;
+  --chip-bg: #ecece7;
+  --ok-bg: #e5f2e9;
+  --ok-text: #1e5631;
+  --danger-border: #e2b4af;
+  --warn-border: #ebcb8b;
+  /* "Amount invested" reference line: neutral grey, never a series colour */
+  --reference: #8a8a84;
   color-scheme: light;
+}
+
+/*
+ * Dark mode follows the device setting (iPhone: Settings → Display &
+ * Brightness). Its own steps, chosen for contrast on a dark surface — not an
+ * automatic inversion. The categorical chart colours stay the same: they are
+ * mid-tone hues that read on both backgrounds.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111113;
+    --surface: #1c1c1f;
+    --surface-muted: #242428;
+    --border: #36363c;
+    --border-strong: #4c4c54;
+    --text: #ececea;
+    --text-muted: #a5a5a1;
+    --text-soft: #c6c6c2;
+    --accent: #6ea6f6;
+    --accent-hover: #8fbaf8;
+    --accent-tint: #1b2940;
+    --gain: #5ccb8b;
+    --loss: #f28b81;
+    --warn-bg: #3a2d10;
+    --warn-text: #f3c86e;
+    --danger-bg: #3e1d1a;
+    --danger-text: #f5a59d;
+    --on-accent: #0c1424;
+    --divider: #2b2b30;
+    --chip-bg: #2e2e33;
+    --ok-bg: #15321f;
+    --ok-text: #90ddab;
+    --danger-border: #6c3029;
+    --warn-border: #6d5521;
+    --reference: #8f8f97;
+    color-scheme: dark;
+  }
+  .soon {
+    background: rgb(0 0 0 / 0.25);
+  }
 }
 
 * {
@@ -174,7 +223,7 @@ button {
 }
 .notice-danger {
   background: var(--danger-bg);
-  border-color: #e2b4af;
+  border-color: var(--danger-border);
   color: var(--danger-text);
 }
 
@@ -208,7 +257,7 @@ button {
 }
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
@@ -227,11 +276,11 @@ button {
 }
 .btn-danger {
   background: var(--loss);
-  color: #fff;
+  color: var(--on-accent);
 }
 .btn-danger-outline {
   background: var(--surface);
-  border-color: #e2b4af;
+  border-color: var(--danger-border);
   color: var(--loss);
 }
 
@@ -507,7 +556,7 @@ button {
 
 .notice-warn {
   background: var(--warn-bg);
-  border-color: #ebcb8b;
+  border-color: var(--warn-border);
   color: var(--warn-text);
 }
 
@@ -522,7 +571,7 @@ button {
   display: inline-flex;
   gap: 2px;
   padding: 3px;
-  background: #ecece7;
+  background: var(--chip-bg);
   border-radius: 10px;
 }
 .segmented button {
@@ -601,7 +650,7 @@ button {
   flex-direction: column;
   gap: 4px;
   padding: 12px 0;
-  border-top: 1px solid #ececE8;
+  border-top: 1px solid var(--divider);
 }
 .holding:first-child {
   border-top: none;
@@ -671,7 +720,7 @@ input[type='date'].input {
 }
 .choice-on {
   border-color: var(--accent);
-  background: #f3f7fd;
+  background: var(--accent-tint);
 }
 .choice b {
   font-weight: 600;
@@ -706,8 +755,8 @@ input[type='date'].input {
   line-height: 1.45;
 }
 .notice-ok {
-  background: #e5f2e9;
-  color: #1e5631;
+  background: var(--ok-bg);
+  color: var(--ok-text);
 }
 .notice-err {
   background: var(--danger-bg);
@@ -760,7 +809,7 @@ input[type='date'].input {
   overflow: hidden;
 }
 .result-list li + li {
-  border-top: 1px solid #ececE8;
+  border-top: 1px solid var(--divider);
 }
 .result {
   display: flex;
@@ -786,7 +835,7 @@ input[type='date'].input {
 .meter {
   height: 8px;
   border-radius: 4px;
-  background: #ececE8;
+  background: var(--divider);
   overflow: hidden;
 }
 .meter > div {
@@ -813,7 +862,7 @@ input[type='date'].input {
 }
 .target-list li {
   min-height: 52px;
-  border-top: 1px solid #ececE8;
+  border-top: 1px solid var(--divider);
   padding: 6px 0;
 }
 .target-list li:first-child {
@@ -843,7 +892,7 @@ input[type='date'].input {
   accent-color: var(--accent);
 }
 .preview {
-  border: 1px solid #ececE8;
+  border: 1px solid var(--divider);
   border-radius: 10px;
   font-size: 13px;
   overflow: hidden;
@@ -853,7 +902,7 @@ input[type='date'].input {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  border-top: 1px solid #ececE8;
+  border-top: 1px solid var(--divider);
 }
 .preview-row > span:last-child {
   text-align: right;
@@ -870,7 +919,7 @@ input[type='date'].input {
   font-weight: 600;
 }
 .new-rule {
-  border-top: 1px solid #ececE8;
+  border-top: 1px solid var(--divider);
   padding-top: 12px;
 }
 .rule-card {
@@ -879,11 +928,11 @@ input[type='date'].input {
   border-radius: 10px;
 }
 .badge-ok {
-  background: #e5f2e9;
-  color: #1e5631;
+  background: var(--ok-bg);
+  color: var(--ok-text);
 }
 .badge-muted {
-  background: #ecece7;
+  background: var(--chip-bg);
   color: var(--text-soft);
 }
 .danger-text {
@@ -916,7 +965,7 @@ input[type='date'].input {
 }
 .ledger-entries li {
   padding: 8px 0;
-  border-top: 1px solid #ececE8;
+  border-top: 1px solid var(--divider);
   gap: 8px;
 }
 .entry-type {
@@ -957,10 +1006,10 @@ input[type='date'].input {
   font-size: 15px;
 }
 .nav-list a + a {
-  border-top: 1px solid #ececE8;
+  border-top: 1px solid var(--divider);
 }
 .nav-list a span[aria-hidden] {
-  color: #8a8a84;
+  color: var(--reference);
 }
 .ledger-head .row-between > span:last-child {
   white-space: nowrap;
@@ -984,13 +1033,13 @@ input[type='date'].input {
 .perf-grid { stroke: var(--border); stroke-width: 1; }
 .perf-axis { fill: var(--text-muted); font-size: 11px; }
 .perf-value { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.perf-invested { fill: none; stroke: #8a8a84; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.perf-invested { fill: none; stroke: var(--reference); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .perf-cross { stroke: var(--text-muted); stroke-width: 1; }
 .perf-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
-.perf-dot-invested { fill: #8a8a84; stroke: var(--surface); stroke-width: 2; }
+.perf-dot-invested { fill: var(--reference); stroke: var(--surface); stroke-width: 2; }
 .legend-swatch { display: inline-block; width: 14px; height: 0; vertical-align: middle; margin-right: 2px; }
 .legend-value { border-top: 2px solid var(--accent); }
-.legend-invested { border-top: 2px dashed #8a8a84; }
+.legend-invested { border-top: 2px dashed var(--reference); }
 .perf-table, .proj-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .perf-table th, .perf-table td, .proj-table th, .proj-table td { text-align: right; padding: 6px 4px; border-bottom: 1px solid var(--border); }
 .perf-table th:first-child, .perf-table td:first-child, .proj-table th:first-child { text-align: left; }
@@ -1007,7 +1056,7 @@ input[type='date'].input {
 .input-narrow { width: 5.5em; min-height: 36px; padding: 4px 8px; }
 
 /* Signals & risk (step 8) */
-.badge-neutral { background: #ecece7; color: var(--text-soft); }
+.badge-neutral { background: var(--chip-bg); color: var(--text-soft); }
 .badge-link { text-decoration: none; }
 .signal-list, .signal-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .signal-list > li + li { border-top: 1px solid var(--border); padding-top: 10px; }
@@ -1035,3 +1084,5 @@ input[type='date'].input {
 .switch-card:first-of-type { border-top: 0; padding-top: 0; }
 .switch-verdict { margin: 0; font-size: 18px; }
 .switch-line { align-items: end; }
+.income-box { padding: 10px 12px; border-radius: 10px; background: var(--surface-muted); }
+.dividend-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

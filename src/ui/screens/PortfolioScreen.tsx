@@ -28,6 +28,7 @@ import { PerformanceChart } from '../components/PerformanceChart';
 import { ProjectionCard } from '../components/ProjectionCard';
 import { SignalsCard } from '../components/SignalsCard';
 import { RiskCard } from '../components/RiskCard';
+import { IncomeEditor, IncomeLine } from '../components/IncomeFund';
 import type { Signal } from '../../domain/signals/holdingSignals';
 
 /** Bar colours for allocation slices, largest first. They step in lightness so they stay distinguishable without hue. */
@@ -161,6 +162,7 @@ export function PortfolioScreen({ portfolioId }: { portfolioId: string }) {
           <HoldingUpdateForm
             unitsHeld={modal.row.quantity}
             currentPrice={modal.row.price?.price}
+            {...(modal.row.price ? { currentPriceDate: modal.row.price.date } : {})}
             marketPriceOn={modal.row.instrument.priceSource === 'market' ? (date) => modal.row.priceOn(date)?.price : undefined}
             onCancel={close}
             onSubmit={async (update) => {
@@ -309,6 +311,7 @@ function HoldingRow({ row, signals, onUpdatePrice, onMore }: { row: AssetRow; si
         ) : (
           <span className="small muted">{price ? marketPriceLabel(price) : 'Waiting for first price…'}</span>
         )}
+        {instrument.income && <IncomeLine fund={instrument} portfolioId={row.link.portfolioId} />}
         <button
           className="btn btn-small btn-outline"
           onClick={onUpdatePrice}
@@ -395,6 +398,7 @@ function AssetActions({ row, onDone }: { row: AssetRow; onDone: () => void }) {
         </label>
       )}
       {row.instrument.priceSource === 'manual' && <PriceLinkEditor instrument={row.instrument} />}
+      <IncomeEditor fund={row.instrument} portfolioId={row.link.portfolioId} />
       <StopLossEditor row={row} />
       <button
         className="btn btn-danger-outline"

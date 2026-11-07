@@ -149,7 +149,7 @@ export function LinesChart({ lines, label }: { lines: Line[]; label: string }) {
             <g>
               <line className="perf-cross" x1={geo.x(idx)} x2={geo.x(idx)} y1={PAD.top} y2={H - PAD.bottom} />
               {lines.map((l, i) =>
-                geo.values[i]![idx] !== null ? <circle key={l.key} cx={geo.x(idx)} cy={geo.y(geo.values[i]![idx]!)} r={4.5} fill={l.color} stroke="#fff" strokeWidth={2} /> : null,
+                geo.values[i]![idx] !== null ? <circle key={l.key} cx={geo.x(idx)} cy={geo.y(geo.values[i]![idx]!)} r={4.5} fill={l.color} stroke="var(--surface)" strokeWidth={2} /> : null,
               )}
             </g>
           )}

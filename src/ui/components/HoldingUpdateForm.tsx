@@ -17,12 +17,15 @@ import { Field } from './Field';
 export function HoldingUpdateForm({
   unitsHeld,
   currentPrice,
+  currentPriceDate,
   marketPriceOn,
   onSubmit,
   onCancel,
 }: {
   unitsHeld: Dec;
   currentPrice?: Dec;
+  /** Date of the current price (an unchanged price on a later date confirms it). */
+  currentPriceDate?: string;
   /** Market assets: the price comes from history for the chosen date and can't be typed. */
   marketPriceOn?: (date: string) => Dec | undefined;
   onSubmit: (update: HoldingUpdate) => Promise<void>;
@@ -58,7 +61,12 @@ export function HoldingUpdateForm({
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const ref = marketPriceOn ? lockedPrice : currentPrice;
-    const r = parseHoldingUpdate(effective, { unitsHeld, ...(ref ? { currentPrice: ref } : {}), today });
+    const r = parseHoldingUpdate(effective, {
+      unitsHeld,
+      ...(ref ? { currentPrice: ref } : {}),
+      ...(!marketPriceOn && currentPriceDate ? { currentPriceDate } : {}),
+      today,
+    });
     if (marketPriceOn && !lockedPrice && r.ok === false) r.errors.price = 'No market price for that date yet.';
     if (!r.ok) return setErrors(r.errors);
     setBusy(true);

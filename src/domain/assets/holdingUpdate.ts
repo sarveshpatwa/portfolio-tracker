@@ -48,7 +48,7 @@ export type HoldingUpdateErrors = Partial<Record<keyof HoldingUpdateInput | 'for
 
 export function parseHoldingUpdate(
   input: HoldingUpdateInput,
-  ctx: { unitsHeld: Dec; currentPrice?: Dec; today: IsoDate },
+  ctx: { unitsHeld: Dec; currentPrice?: Dec; currentPriceDate?: IsoDate; today: IsoDate },
 ): { ok: true; value: HoldingUpdate } | { ok: false; errors: HoldingUpdateErrors } {
   const errors: HoldingUpdateErrors = {};
 
@@ -79,7 +79,9 @@ export function parseHoldingUpdate(
     else errors.source = 'Choose where the new units came from.';
   }
 
-  const priceChanged = !!price && (!ctx.currentPrice || !price.eq(ctx.currentPrice));
+  // The same price on a LATER date counts too: it confirms "still $12" (and resets the reminder).
+  const priceChanged =
+    !!price && (!ctx.currentPrice || !price.eq(ctx.currentPrice) || (ctx.currentPriceDate !== undefined && isIsoDate(date) && date > ctx.currentPriceDate));
   if (Object.keys(errors).length === 0 && !priceChanged && unitsChange.isZero()) {
     errors.form = 'Nothing to save — change the price or the units.';
   }

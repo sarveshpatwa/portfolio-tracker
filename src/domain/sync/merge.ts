@@ -60,6 +60,15 @@ function stamp(r: AnyRecord): string {
 }
 
 /**
+ * Ledger entries are add-only, with one exception: income-fund dividends
+ * (ids starting "div:") are booked as an estimate and later corrected to the
+ * statement amount, so the newer version of those wins.
+ */
+function isCorrectable(store: StoreKey, r: AnyRecord): boolean {
+  return store === 'transactions' && String(r.id).startsWith('div:');
+}
+
+/**
  * Newer edit wins — except for prices on the same day, where a price typed by
  * hand always beats one fetched from a price link (on either device).
  */
@@ -92,7 +101,7 @@ export function mergeSnapshots(local: Snapshot, incoming: Snapshot): MergePlan {
         map.set(key, r);
         upsertKeys.get(store)!.add(key);
         changes[store].added++;
-      } else if (!ADD_ONLY.has(store) && incomingWins(store, r, mine)) {
+      } else if ((!ADD_ONLY.has(store) || isCorrectable(store, r)) && incomingWins(store, r, mine)) {
         map.set(key, r);
         upsertKeys.get(store)!.add(key);
         changes[store].updated++;

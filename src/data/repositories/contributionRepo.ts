@@ -100,6 +100,12 @@ export const contributionRepo = {
     await (await getDb()).write([S.contributionRules], ({ put }) => put(S.contributionRules, updated));
   },
 
+  /** Changes a rule's amount. Buys already made keep their amount; the next ones use the new one. */
+  async setAmount(rule: ContributionRule, amount: string): Promise<void> {
+    const updated: ContributionRule = { ...rule, amount, updatedAt: new Date().toISOString() };
+    await (await getDb()).write([S.contributionRules], ({ put }) => put(S.contributionRules, updated));
+  },
+
   /** Deletes the rule. Contributions it already made stay in the ledger. */
   async deleteRule(rule: ContributionRule): Promise<void> {
     const tombstone: Deletion = { id: rule.id, store: S.contributionRules, deletedAt: new Date().toISOString() };

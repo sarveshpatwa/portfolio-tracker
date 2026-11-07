@@ -9,6 +9,7 @@
  * So a failure halfway can never leave a half-created asset.
  */
 
+import type { Dec } from '../../domain/money/decimal';
 import type { ManualAssetValues } from '../../domain/assets/manualAssetForm';
 import { holdingUpdateRecords, type HoldingUpdate } from '../../domain/assets/holdingUpdate';
 import { LedgerError, replayLedger } from '../../domain/portfolio/ledger';
@@ -20,6 +21,7 @@ import { newId, nextSeq } from '../ids';
 import { ValidationError } from './errors';
 import type { PriceLink } from '../../domain/pricing/priceLink';
 import { groupKey } from '../../domain/pricing/fundGroups';
+import { correctedDividend } from '../../domain/income/dividends';
 
 export const assetRepo = {
   async listForPortfolio(portfolioId: string): Promise<PortfolioAsset[]> {
@@ -206,6 +208,31 @@ export const assetRepo = {
     await db.write([S.instruments], ({ put }) => {
       for (const i of updated) put(S.instruments, i);
     });
+  },
+
+  /**
+   * Turns income-fund tracking on (with a first 7-day SEC yield), records a new
+   * yield (replacing one on the same date), or turns it off (undefined).
+   */
+  async setIncomeYield(instrumentId: string, entry: { date: string; pct: string } | undefined): Promise<void> {
+    const db = await getDb();
+    const instrument = await db.get<Instrument>(S.instruments, instrumentId);
+    if (!instrument) throw new ValidationError('That asset no longer exists.');
+    const { income: old, ...rest } = instrument;
+    const income = entry
+      ? { since: old?.since ?? new Date().toISOString().slice(0, 10), yields: [...(old?.yields ?? []).filter((y) => y.date !== entry.date), entry].sort((a, b) => a.date.localeCompare(b.date)) }
+      : undefined;
+    const updated: Instrument = { ...rest, ...(income ? { income } : {}), updatedAt: new Date().toISOString() };
+    await db.write([S.instruments], ({ put }) => put(S.instruments, updated));
+  },
+
+  /** Replaces an income-fund dividend with the amount from your statement. */
+  async correctDividend(tx: Transaction, actualUnits: Dec): Promise<void> {
+    const db = await getDb();
+    const all = await db.getAllByIndex<Transaction>(S.transactions, 'portfolioId', tx.portfolioId);
+    const fixed = correctedDividend(tx, actualUnits, new Date().toISOString());
+    replayLedger(all.map((t) => (t.id === tx.id ? fixed : t)));
+    await db.write([S.transactions], ({ put }) => put(S.transactions, fixed));
   },
 
   /** Ids of manual assets (any portfolio) with the same name — the same fund held elsewhere. */

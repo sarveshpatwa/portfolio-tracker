@@ -138,6 +138,12 @@ number at the bottom.
 
 ---
 
+## Other details
+
+- **Dark mode** follows the device setting (iPhone: Settings → Display & Brightness).
+- **Recurring contributions:** *Change amount* on a rule; buys already made keep their amount.
+- **Confirming a price:** saving the same price on a later date counts as an update (resets the reminder).
+
 ## Folder structure
 
 ```
@@ -244,15 +250,14 @@ few per fund per day.
 
 ### Using it (one-time setup per fund)
 
-- **All funds at once:** **Settings → Your funds** lists every manual-price asset across all
-  portfolios (the same fund held in two portfolios is one row, matched by name). Type each
-  Vanguard fund's code once — e.g. `0066` or `N467` — and tap **Save codes**. That's it:
-  from then on prices are fetched automatically. **Fetch all now** forces a refresh.
-- **New asset:** Add asset → Manual price → paste the fund's Vanguard page link or code
-  under *Daily price from Vanguard*. Leave the price empty to start from Vanguard's latest price.
-- **One asset:** tap **···** on the holding → paste the link or code → **Save link** (also
+- **New asset:** Add asset → Manual price → *How should the price be updated?* → **Fetch daily
+  from Vanguard** → enter the fund code (e.g. `0066` or `N467`) or page link. Leave the price
+  empty to start from Vanguard's latest price.
+- **Existing asset:** tap **···** on the holding → paste the link or code → **Save link** (also
   applied to the same fund in your other portfolios). The same place has **Fetch now**,
   **Open Vanguard page** and removing the link.
+- **Settings → Your funds** shows every manual-price fund (all portfolios), where its price
+  comes from (Vanguard code or typed), the latest price and any fetch problem, plus **Fetch all now**.
 - Prices you typed **before** setting up a code (e.g. starting prices) are replaced by
   Vanguard's price for the same day. Prices you type **after** setup win on their date.
 - Prices are fetched when the app opens and while it's open, once Vanguard has published
@@ -330,6 +335,21 @@ Hand-priced assets get only the signals that make sense for weekly/bi-weekly pri
 year), largest drop (whole history, contributions removed) and concentration (largest holding).
 Volatility and largest drop need 60 days of history. Formulas: `src/domain/signals/`.
 
+## $1.00 income funds (money market, stable value)
+
+These keep their price at $1.00 and pay income as **new units**: each day the fund declares a
+rate per unit, and the month's total is paid on the first business day of the next month.
+
+Holding → **···** → tick **$1.00 income fund** → enter the **7-day SEC yield** from the fund's
+Vanguard page (update it every week or so; each day uses the yield in effect then).
+
+- The holding shows the dividend earned so far this month (estimated):
+  `units held each day × yield ÷ 365`, summed over the days. Purchases start earning the next day.
+- On the payable date the estimate is added as new units marked **estimated**. Enter the amount
+  from your statement (**Use statement amount**) to replace it — on either device, it is never doubled.
+- Dividends paid before you turned this on are left alone (enter those with Update units → Earned).
+- Example: October 2026, ≈6,282 average units at 3.84% → 20.49 estimated vs 20.48 paid.
+
 ## Compare portfolios
 
 **Compare** tab: *if the same money had gone into each portfolio, which would have done best?*
@@ -389,3 +409,4 @@ the money went to (new). Set both portfolios and their assets up first.
 | 7 | Dashboard: performance chart (1D–All, time-weighted return), projection estimate, card trend lines | ✅ |
 | 8 | Signals (decline, off-high, below average, volatility, concentration, alert price) & risk profile | ✅ |
 | 9 | Compare: equal-money backtest (headline), actual time-weighted record, Sharpe, largest drop; Track a switch with statement check, mirrored new money, optional fees | ✅ |
+| 1.0 | Polish: $1.00 income funds (daily dividend estimate, monthly booking, statement correction), price question on Add asset, status-only fund list, dark mode, change recurring amount, confirm unchanged price | ✅ |

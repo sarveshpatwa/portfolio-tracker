@@ -79,6 +79,12 @@ export interface Instrument {
    * data (see pricing/priceLink.ts). Typed prices keep working alongside it.
    */
   priceLink?: { url: string; fundId: string; since?: string };
+  /**
+   * $1.00 income fund (money market / stable value): dividends are estimated
+   * daily from the 7-day SEC yield and booked monthly as new units
+   * (see income/dividends.ts). `since` = when this was turned on.
+   */
+  income?: { since: string; yields: { date: string; pct: string }[] };
   createdAt: string;
   updatedAt: string;
 }
@@ -146,7 +152,11 @@ export interface Transaction {
   /** Monotonic insertion order — tie-breaker for same-day entries. */
   seq: number;
   note?: string;
+  /** Income-fund dividends booked from the yield estimate (replaced by the actual amount later). */
+  estimated?: boolean;
   createdAt: string;
+  /** Only set when an entry is corrected (income-fund dividends). */
+  updatedAt?: string;
 }
 
 export interface AllocationTarget {

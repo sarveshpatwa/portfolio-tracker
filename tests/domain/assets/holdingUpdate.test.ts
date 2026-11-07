@@ -107,3 +107,13 @@ describe('holdingUpdateRecords → ledger', () => {
     expect(rec.transactions[0]?.amount).toBe('110');
   });
 });
+
+describe('confirming an unchanged price', () => {
+  it('the same price on a later date is saved (it confirms the price)', () => {
+    const input: HoldingUpdateInput = { date: '2026-11-07', price: '12', units: '', unitsMode: 'add', source: '' };
+    const r = parseHoldingUpdate(input, { unitsHeld: d('10'), currentPrice: d('12'), currentPriceDate: '2026-10-20', today: '2026-11-07' });
+    expect(r.ok && r.value.priceChanged).toBe(true);
+    const same = parseHoldingUpdate(input, { unitsHeld: d('10'), currentPrice: d('12'), currentPriceDate: '2026-11-07', today: '2026-11-07' });
+    expect(same.ok).toBe(false);
+  });
+});

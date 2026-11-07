@@ -95,6 +95,9 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
     priceLink: '',
   });
   const [errors, setErrors] = useState<FieldErrors & { form?: string }>({});
+  const [source, setSource] = useState<'typed' | 'vanguard'>('typed');
+  const relayQuery = useLiveQuery(() => settingsRepo.links(), [S.settings]);
+  const relaySet = relayQuery.status === 'ready' && !!relayQuery.data.relayUrl;
   const [busy, setBusy] = useState(false);
 
   const set = (field: keyof ManualAssetFormInput) => (value: string) => {
@@ -104,19 +107,23 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    // Price left empty + a price link: fetch the first price from Vanguard.
-    let input = form;
+    if (source === 'vanguard' && !form.priceLink?.trim()) {
+      setErrors({ priceLink: 'Enter the Vanguard fund code, or choose “I’ll type prices”.' });
+      return;
+    }
+    // Typed prices: no link. Vanguard + empty price: fetch the first price.
+    let input: ManualAssetFormInput = source === 'typed' ? { ...form, priceLink: '' } : { ...form, reminderDays: '' };
     let fetched = false;
-    const link = form.priceLink?.trim() ? parsePriceLink(form.priceLink) : null;
-    if (!form.price.trim() && link?.ok) {
+    const link = input.priceLink?.trim() ? parsePriceLink(input.priceLink) : null;
+    if (!input.price.trim() && link?.ok) {
       setBusy(true);
       try {
         const { relayUrl, feedTemplate } = await settingsRepo.links();
         if (!relayUrl) throw new Error('Set up the price relay first (Settings → Price links), or type the price.');
         const p = await linkPriceService.test(relayUrl, feedTemplate, link.link.fundId);
-        input = { ...form, price: p.price.toString(), priceDate: p.date };
+        input = { ...input, price: p.price.toString(), priceDate: p.date };
         fetched = true;
-        setForm(input);
+        setForm((f) => ({ ...f, price: input.price, priceDate: input.priceDate }));
       } catch (err) {
         setErrors({ price: `Couldn’t fetch the price: ${err instanceof Error ? err.message : 'unknown error'}` });
         setBusy(false);
@@ -176,15 +183,51 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
             </select>
           )}
         </Field>
+        <fieldset className="fieldset">
+          <legend className="field-label">How should the price be updated?</legend>
+          <label className="row-start">
+            <input type="radio" name="price-source" checked={source === 'typed'} onChange={() => setSource('typed')} />I’ll type prices
+          </label>
+          <label className="row-start">
+            <input type="radio" name="price-source" checked={source === 'vanguard'} onChange={() => setSource('vanguard')} />
+            Fetch daily from Vanguard (private fund without a ticker)
+          </label>
+        </fieldset>
+        {source === 'vanguard' && (
+          <Field
+            label="Vanguard fund code or page link"
+            error={errors.priceLink}
+            hint="e.g. 0066 or N467 — the number in the fund page’s address. Fetched through your relay (Settings → Price links)."
+          >
+            {(p) => (
+              <input
+                {...p}
+                className="input"
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                value={form.priceLink ?? ''}
+                placeholder="e.g. N467"
+                onChange={(e) => set('priceLink')(e.target.value)}
+              />
+            )}
+          </Field>
+        )}
+        {source === 'vanguard' && !relaySet && (
+          <p className="small warn-text">
+            The price relay isn’t set up on this device yet — <a href={href.settings()}>Settings → Price links</a>. You can still add the fund now
+            with a typed starting price.
+          </p>
+        )}
         <div className="grid-2">
-          <Field label="Price per unit ($)" error={errors.price}>
+          <Field label="Price per unit ($)" error={errors.price} hint={source === 'vanguard' ? 'Leave empty to use Vanguard’s latest price.' : undefined}>
             {(p) => (
               <input
                 {...p}
                 className="input"
                 inputMode="decimal"
                 value={form.price}
-                placeholder={form.priceLink?.trim() ? 'empty = from Vanguard' : '0.00'}
+                placeholder={source === 'vanguard' ? 'from Vanguard' : '0.00'}
                 onChange={(e) => set('price')(e.target.value)}
               />
             )}
@@ -202,6 +245,7 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
             )}
           </Field>
         </div>
+        {source === 'typed' && (
         <Field label="Remind me to update the price">
           {(p) => (
             <select {...p} className="input" value={form.reminderDays} onChange={(e) => set('reminderDays')(e.target.value)}>
@@ -211,30 +255,7 @@ function ManualAssetForm({ portfolio, rows }: { portfolio: Portfolio; rows: Asse
             </select>
           )}
         </Field>
-      </section>
-
-      <section className="card stack">
-        <h2 className="section-title">
-          Daily price from Vanguard <span className="muted normal">· optional</span>
-        </h2>
-        <p className="muted small">
-          For Vanguard funds without a ticker: paste the fund’s Vanguard page link and the app fetches its closing price every day
-          (needs the price relay — Settings → Price links). Leave the price above empty to start from Vanguard’s latest price. You
-          can still type prices yourself; a typed price wins on its date.
-        </p>
-        <Field label="Vanguard page link or fund number" error={errors.priceLink}>
-          {(p) => (
-            <input
-              {...p}
-              className="input"
-              inputMode="url"
-              autoComplete="off"
-              value={form.priceLink ?? ''}
-              placeholder="https://investor.vanguard.com/…/overview/0066…"
-              onChange={(e) => set('priceLink')(e.target.value)}
-            />
-          )}
-        </Field>
+        )}
       </section>
 
       <section className="card stack">

@@ -280,6 +280,16 @@ function RuleCard({ rule, runs, onDelete }: { rule: ContributionRule; runs: numb
   const status = contributionService.statusOf(rule.id);
   const next = nextScheduledDate(rule, todayLocal());
   const freq = FREQUENCIES.find((f) => f.value === rule.frequency)?.label.toLowerCase() ?? rule.frequency;
+  const [editing, setEditing] = useState(false);
+  const [amountText, setAmountText] = useState(rule.amount);
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const saveAmount = async () => {
+    const v = Dec.tryParse(amountText.trim().replace(/[$,]/g, ''));
+    if (!v || !v.gte('1') || !v.eq(v.floorTo(2))) return setAmountError('Enter an amount of at least $1.00 (cents at most).');
+    setAmountError(null);
+    await contributionRepo.setAmount(rule, v.toString());
+    setEditing(false);
+  };
   return (
     <div className="rule-card stack-tight">
       <div className="row-between baseline">
@@ -303,10 +313,31 @@ function RuleCard({ rule, runs, onDelete }: { rule: ContributionRule; runs: numb
         <button className="btn btn-small btn-outline" onClick={() => void contributionRepo.setPaused(rule, !rule.paused).then(() => contributionService.runDue())}>
           {rule.paused ? 'Resume' : 'Pause'}
         </button>
+        <button className="btn btn-small btn-outline" onClick={() => setEditing((x) => !x)} aria-expanded={editing}>
+          Change amount
+        </button>
         <button className="btn btn-small btn-outline danger-text" onClick={onDelete}>
           Delete
         </button>
       </div>
+      {editing && (
+        <div className="stack-tight">
+          <div className="row-start">
+            <input
+              className="input input-narrow"
+              inputMode="decimal"
+              aria-label="New amount ($)"
+              value={amountText}
+              onChange={(e) => setAmountText(e.target.value)}
+            />
+            <button className="btn btn-small btn-primary" onClick={() => void saveAmount()}>
+              Save amount
+            </button>
+          </div>
+          {amountError && <span className="field-error">{amountError}</span>}
+          <span className="muted small">Buys already made keep their amount; the next ones{next ? ` (from ${fmtDate(next)})` : ''} use the new one.</span>
+        </div>
+      )}
       {rule.paused && <span className="muted small">Resuming continues from today; dates missed while paused are skipped.</span>}
     </div>
   );
